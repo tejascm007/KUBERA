@@ -1,0 +1,122 @@
+"""
+Application Configuration
+Environment variables and settings - Supabase Compatible
+"""
+
+from typing import List, Optional
+from pydantic_settings import BaseSettings
+from pydantic import Field
+
+
+class Settings(BaseSettings):
+    """Application settings from environment variables"""
+    
+    # ==================== APP ====================
+    APP_NAME: str = "KUBERA"
+    APP_VERSION: str = "1.0.0"
+    APP_ENV: str = "development"
+    DEBUG: bool = True
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8000"
+    
+    # ==================== DATABASE (SUPABASE) ====================
+    POSTGRES_HOST: str
+    POSTGRES_PORT: int = 6543  # Supabase Transaction Pooler port
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str = "postgres"
+    POSTGRES_MIN_POOL_SIZE: int = 2
+    POSTGRES_MAX_POOL_SIZE: int = 10
+    
+    # ==================== JWT ====================
+    SECRET_KEY: str
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    
+      
+    # ==================== EMAIL ====================
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM_EMAIL: Optional[str] = None
+    SMTP_FROM_NAME: str = "KUBERA"
+
+    # # ==================== ANTHROPIC (REQUIRED) ====================
+    # ANTHROPIC_API_KEY: str
+    # CLAUDE_MODEL: str = "claude-3-5-sonnet-20241022"
+    # MAX_TOKENS: int = 4096
+    # ========== LLM CONFIGURATION (GROQ) ==========
+    GROQ_API_KEY: str = Field(..., env="GROQ_API_KEY")
+    # Groq models:
+    # - llama-3.1-70b-versatile (best for complex reasoning)
+    # - llama-3.1-8b-instant (fastest)
+    # - mixtral-8x7b-32768 (good balance)
+    # - gemma2-9b-it (efficient)
+    GROQ_MODEL: str = Field(
+        default="llama-3.1-70b-versatile",
+        env="GROQ_MODEL"
+    )
+    
+    MAX_TOKENS: int = Field(default=4096, env="MAX_TOKENS")
+    TEMPERATURE: float = Field(default=0.7, env="TEMPERATURE")
+    # ==================== OTP ====================
+    OTP_EXPIRE_MINUTES: int = 10
+    OTP_MAX_ATTEMPTS: int = 3
+    OTP_LENGTH: int = 6
+    
+    # ==================== RATE LIMITING ====================
+    RATE_LIMIT_BURST: int = 10
+    RATE_LIMIT_PER_CHAT: int = 50
+    RATE_LIMIT_PER_HOUR: int = 150
+    RATE_LIMIT_PER_DAY: int = 1000
+    
+    # ==================== STOCK DATA APIs (For MCP Servers) ====================
+    # All optional - yfinance works without any key
+    ALPHA_VANTAGE_API_KEY: Optional[str] = None
+    FINNHUB_API_KEY: Optional[str] = None
+    MARKETAUX_API_KEY: Optional[str] = None
+    NEWSAPI_KEY: Optional[str] = None
+    INDIAN_API_KEY: Optional[str] = None
+    
+    # ==================== BACKGROUND JOBS ====================
+    PORTFOLIO_UPDATE_FREQUENCY: int = 30
+    PORTFOLIO_REPORT_FREQUENCY: str = "disabled"
+    PORTFOLIO_REPORT_SEND_TIME: str = "09:00"
+    PORTFOLIO_REPORT_DAY_WEEKLY: int = 1
+    PORTFOLIO_REPORT_DAY_MONTHLY: int = 1
+    
+    # ==================== MISC ====================
+    TIMEZONE: str = "Asia/Kolkata"
+    LOG_LEVEL: str = "INFO"
+    LOG_FILE: str = "logs/kubera.log"
+    PYTHON_EXECUTABLE: str = "python"
+    
+    # ==================== HELPER PROPERTIES ====================
+    @property
+    def cors_origins(self) -> List[str]:
+        """Parse CORS origins from comma-separated string"""
+        return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
+    
+    @property
+    def database_url(self) -> str:
+        """Construct database URL"""
+        return (
+            f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
+    
+    @property
+    def is_email_configured(self) -> bool:
+        """Check if email is properly configured"""
+        return all([self.SMTP_USER, self.SMTP_PASSWORD, self.SMTP_FROM_EMAIL])
+    
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = True
+        extra = "ignore"
+
+
+# Global settings instance
+settings = Settings()

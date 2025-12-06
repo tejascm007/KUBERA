@@ -1,0 +1,72 @@
+# ============================================================================
+# KUBERA STOCK ANALYSIS CHATBOT - ESSENTIAL REQUIREMENTS
+# Python 3.11+
+# ============================================================================
+
+# Web Framework
+fastapi
+uvicorn[standard]
+python-multipart
+websockets
+
+# Async Database (Supabase/PostgreSQL)
+asyncpg
+psycopg2-binary
+
+# Authentication & Security
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt
+pydantic[email]
+pydantic-settings
+
+# LLM & AI
+anthropic
+langchain
+langchain-core
+langchain-anthropic
+groq
+
+# MCP (Model Context Protocol)
+mcp
+langchain-mcp-adapters
+
+# Stock Data & Finance
+yfinance
+pandas
+numpy
+
+# Visualization
+matplotlib
+plotly
+
+# Email
+aiosmtplib
+email-validator
+jinja2
+
+# Background Jobs
+apscheduler
+
+# HTTP Requests
+httpx
+aiohttp
+requests
+
+# Utilities
+python-dotenv
+pytz
+python-dateutil
+
+# Logging
+colorlog
+
+
+#servers
+
+fastmcp
+yfinance
+requests
+pandas
+numpy
+python-dateutil

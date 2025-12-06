@@ -1,0 +1,145 @@
+# ============================================================================
+# KUBERA STOCK ANALYSIS CHATBOT - DOCKER COMPOSE
+# Docker Compose configuration for development and production
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # POSTGRESQL DATABASE
+  # ==========================================================================
+  postgres:
+    image: postgres:14-alpine
+    container_name: kubera-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kubera_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kubera_password}
+      POSTGRES_DB: ${POSTGRES_DB:-kubera_db}
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+      TZ: Asia/Kolkata
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./app/db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kubera_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kubera-network
+
+  # ==========================================================================
+  # REDIS (Optional - for caching)
+  # ==========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: kubera-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kubera-network
+
+  # ==========================================================================
+  # KUBERA BACKEND API
+  # ==========================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kubera-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # App settings
+      APP_ENV: ${APP_ENV:-production}
+      DEBUG: ${DEBUG:-False}
+      
+      # Database
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-kubera_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kubera_password}
+      POSTGRES_DB: ${POSTGRES_DB:-kubera_db}
+      
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      
+      # Security
+      SECRET_KEY: ${SECRET_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      
+      # SMTP
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      
+      # Timezone
+      TZ: Asia/Kolkata
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+      - ./mcp_servers:/app/mcp_servers:ro
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - kubera-network
+
+  # ==========================================================================
+  # PGADMIN (Optional - Database Management)
+  # ==========================================================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: kubera-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@kubera.ai}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - kubera-network
+
+# ============================================================================
+# VOLUMES
+# ============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+# ============================================================================
+# NETWORKS
+# ============================================================================
+networks:
+  kubera-network:
+    driver: bridge
