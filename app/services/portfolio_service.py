@@ -27,7 +27,7 @@ class PortfolioService:
     # ========================================================================
     # PORTFOLIO OPERATIONS
     # ========================================================================
-    
+        
     async def get_user_portfolio(self, user_id: str) -> Dict[str, Any]:
         """
         Get complete user portfolio with summary
@@ -41,6 +41,21 @@ class PortfolioService:
         # Get all portfolio entries
         entries = await self.portfolio_repo.get_user_portfolio(user_id)
         
+        # ========================================================================
+        # FIX: Convert UUIDs to strings for all entries
+        # ========================================================================
+        for entry in entries:
+            if entry.get('portfolio_id'):
+                entry['portfolio_id'] = str(entry['portfolio_id'])
+            if entry.get('user_id'):
+                entry['user_id'] = str(entry['user_id'])
+            
+            # Convert dates to strings
+            if entry.get('buy_date') and hasattr(entry['buy_date'], 'isoformat'):
+                entry['buy_date'] = entry['buy_date'].isoformat()
+            if entry.get('last_price_update') and hasattr(entry['last_price_update'], 'isoformat'):
+                entry['last_price_update'] = entry['last_price_update'].isoformat()
+        
         # Get summary
         summary = await self.portfolio_repo.get_portfolio_summary(user_id)
         
@@ -49,6 +64,7 @@ class PortfolioService:
             "summary": summary,
             "portfolio": entries
         }
+
     
     async def add_portfolio_entry(
         self,
@@ -97,21 +113,36 @@ class PortfolioService:
             await self.portfolio_repo.update_current_price(entry['portfolio_id'], current_price)
             entry = await self.portfolio_repo.get_portfolio_by_id(entry['portfolio_id'])
         
+        # ========================================================================
+        # FIX: Convert UUIDs to strings
+        # ========================================================================
+        if entry:
+            if entry.get('portfolio_id'):
+                entry['portfolio_id'] = str(entry['portfolio_id'])
+            if entry.get('user_id'):
+                entry['user_id'] = str(entry['user_id'])
+            
+            # Convert date to string if present
+            if entry.get('buy_date') and hasattr(entry['buy_date'], 'isoformat'):
+                entry['buy_date'] = entry['buy_date'].isoformat()
+            if entry.get('last_price_update') and hasattr(entry['last_price_update'], 'isoformat'):
+                entry['last_price_update'] = entry['last_price_update'].isoformat()
+        
         logger.info(f"Portfolio entry added for user {user_id}: {stock_symbol}")
         
         return entry
-    
+
     async def update_portfolio_entry(
-        self,
-        portfolio_id: str,
-        updates: Dict[str, Any]
+    self,
+    portfolio_id: str,
+    updates: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Update portfolio entry
         
         Args:
             portfolio_id: Portfolio UUID
-            updates: Fields to update
+            updates: Fields to update (quantity, notes, investment_type, etc.)
         
         Returns:
             Updated portfolio entry
@@ -121,12 +152,35 @@ class PortfolioService:
         updates.pop('stock_symbol', None)
         updates.pop('exchange', None)
         updates.pop('portfolio_id', None)
+        updates.pop('current_price', None)  # Price updated separately
+        updates.pop('current_value', None)
+        updates.pop('gain_loss', None)
+        updates.pop('gain_loss_percent', None)
         
+        # Update the entry
         entry = await self.portfolio_repo.update_portfolio_entry(portfolio_id, updates)
+        
+        if not entry:
+            raise PortfolioNotFoundException(portfolio_id)
+        
+        # ========================================================================
+        # FIX: Convert UUIDs to strings
+        # ========================================================================
+        if entry.get('portfolio_id'):
+            entry['portfolio_id'] = str(entry['portfolio_id'])
+        if entry.get('user_id'):
+            entry['user_id'] = str(entry['user_id'])
+        
+        # Convert dates to strings
+        if entry.get('buy_date') and hasattr(entry['buy_date'], 'isoformat'):
+            entry['buy_date'] = entry['buy_date'].isoformat()
+        if entry.get('last_price_update') and hasattr(entry['last_price_update'], 'isoformat'):
+            entry['last_price_update'] = entry['last_price_update'].isoformat()
         
         logger.info(f"Portfolio entry updated: {portfolio_id}")
         
         return entry
+
     
     async def delete_portfolio_entry(self, portfolio_id: str) -> bool:
         """

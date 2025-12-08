@@ -69,7 +69,7 @@ class EmailService:
                 port=settings.SMTP_PORT,
                 username=settings.SMTP_USER,
                 password=settings.SMTP_PASSWORD,
-                use_tls=settings.SMTP_TLS
+                
             )
             
             # Mark as sent

@@ -56,7 +56,7 @@ class RateLimitRepository:
         param_count += 1
         
         set_clauses.append(f"updated_by = ${param_count}")
-        values.append(updated_by)
+        values.append(str(updated_by))  # Convert UUID to string
         
         query = f"""
             UPDATE rate_limit_config
@@ -67,7 +67,25 @@ class RateLimitRepository:
         
         async with self.db.acquire() as conn:
             row = await conn.fetchrow(query, *values)
-            return dict(row) if row else None
+            result = dict(row) if row else None
+            
+            # ========================================================================
+            # FIX: Convert UUID and parse JSON
+            # ========================================================================
+            if result:
+                if result.get('config_id'):
+                    result['config_id'] = str(result['config_id'])
+                
+                # Parse JSON string to dict
+                import json
+                if result.get('user_specific_overrides'):
+                    if isinstance(result['user_specific_overrides'], str):
+                        result['user_specific_overrides'] = json.loads(result['user_specific_overrides'])
+                else:
+                    result['user_specific_overrides'] = {}
+            
+            return result
+
     
     async def get_user_specific_limits(self, user_id: str) -> Optional[Dict[str, int]]:
         """Get user-specific rate limit overrides"""
@@ -109,8 +127,9 @@ class RateLimitRepository:
                 user_id,
                 json.dumps(limits),
                 get_current_ist_time(),
-                updated_by
+                str(updated_by)  # Convert UUID to string
             )
+
     
     async def add_user_to_whitelist(self, user_id: str, updated_by: str) -> None:
         """Add user to whitelist (no rate limits)"""
@@ -129,7 +148,7 @@ class RateLimitRepository:
                 query,
                 user_id,
                 get_current_ist_time(),
-                updated_by
+                str(updated_by)
             )
     
     async def remove_user_from_whitelist(self, user_id: str, updated_by: str) -> None:
@@ -148,8 +167,22 @@ class RateLimitRepository:
                 query,
                 user_id,
                 get_current_ist_time(),
-                updated_by
+                str(updated_by)
             )
+
+    async def get_whitelisted_users(self) -> List[Dict[str, Any]]:
+        """Get all whitelisted users"""
+        query = """
+            SELECT 
+                unnest(whitelisted_users) as user_id
+            FROM rate_limit_config
+            ORDER BY created_at DESC 
+            LIMIT 1
+        """
+        
+        async with self.db.acquire() as conn:
+            rows = await conn.fetch(query)
+            return [{'user_id': row['user_id']} for row in rows] if rows else []
     
     async def is_user_whitelisted(self, user_id: str) -> bool:
         """Check if user is whitelisted"""
@@ -184,6 +217,9 @@ class RateLimitRepository:
             """
             row = await conn.fetchrow(insert_query, user_id)
             return dict(row) if row else None
+
+
+
     
     async def increment_counters(
         self,

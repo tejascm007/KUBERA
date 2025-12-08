@@ -9,6 +9,7 @@ from app.db.repositories.portfolio_repository import PortfolioRepository
 from app.db.repositories.rate_limit_repository import RateLimitRepository
 from app.db.repositories.admin_repository import AdminRepository
 from app.db.repositories.email_repository import EmailRepository
+from app.db.repositories.otp_repository import OTPRepository
 
 __all__ = [
     "UserRepository",

@@ -103,7 +103,6 @@ async def register_step_3(request: CompleteRegistrationRequest):
     """
     db_pool = await get_db_pool()
     auth_service = AuthService(db_pool)
-    
     registration_data = request.dict()
     result = await auth_service.register_step_3_complete(registration_data)
     

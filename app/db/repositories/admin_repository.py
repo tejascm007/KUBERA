@@ -25,7 +25,7 @@ class AdminRepository:
     
     async def get_admin_by_id(self, admin_id: str) -> Optional[Dict[str, Any]]:
         """Get admin by ID"""
-        query = "SELECT * FROM admin WHERE admin_id = $1"
+        query = "SELECT * FROM admins WHERE admin_id = $1"
         
         async with self.db.acquire() as conn:
             row = await conn.fetchrow(query, admin_id)
@@ -33,7 +33,7 @@ class AdminRepository:
     
     async def get_admin_by_email(self, email: str) -> Optional[Dict[str, Any]]:
         """Get admin by email"""
-        query = "SELECT * FROM admin WHERE email = $1"
+        query = "SELECT * FROM admins WHERE email = $1"
         
         async with self.db.acquire() as conn:
             row = await conn.fetchrow(query, email.lower())
@@ -41,7 +41,7 @@ class AdminRepository:
     
     async def get_admin_by_phone(self, phone: str) -> Optional[Dict[str, Any]]:
         """Get admin by phone"""
-        query = "SELECT * FROM admin WHERE phone = $1"
+        query = "SELECT * FROM admins WHERE phone = $1"
         
         async with self.db.acquire() as conn:
             row = await conn.fetchrow(query, phone)
@@ -62,7 +62,7 @@ class AdminRepository:
     async def update_last_login(self, admin_id: str) -> None:
         """Update admin's last login timestamp"""
         query = """
-            UPDATE admin
+            UPDATE admins
             SET last_login_at = $1
             WHERE admin_id = $2
         """
@@ -77,7 +77,7 @@ class AdminRepository:
     ) -> Optional[Dict[str, Any]]:
         """Activate or deactivate admin"""
         query = """
-            UPDATE admin
+            UPDATE admins
             SET is_active = $1
             WHERE admin_id = $2
             RETURNING *
@@ -97,7 +97,7 @@ class AdminRepository:
     ) -> Dict[str, Any]:
         """Log admin activity"""
         query = """
-            INSERT INTO admin_activity_log (
+            INSERT INTO admin_activity_logs (
                 admin_id, action, target_type, target_id,
                 old_value, new_value, ip_address, user_agent
             )
@@ -149,8 +149,8 @@ class AdminRepository:
         
         query = f"""
             SELECT l.*, a.email as admin_email, a.full_name as admin_name
-            FROM admin_activity_log l
-            JOIN admin a ON l.admin_id = a.admin_id
+            FROM admin_activity_logs l
+            JOIN admins a ON l.admin_id = a.admin_id
             {where_clause}
             ORDER BY l.performed_at DESC
             LIMIT ${param_count} OFFSET ${param_count + 1}
@@ -167,10 +167,10 @@ class AdminRepository:
         """Count activity logs"""
         
         if admin_id:
-            query = "SELECT COUNT(*) FROM admin_activity_log WHERE admin_id = $1"
+            query = "SELECT COUNT(*) FROM admin_activity_logs WHERE admin_id = $1"
             params = [admin_id]
         else:
-            query = "SELECT COUNT(*) FROM admin_activity_log"
+            query = "SELECT COUNT(*) FROM admin_activity_logs"
             params = []
         
         async with self.db.acquire() as conn:

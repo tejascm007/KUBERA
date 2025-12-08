@@ -397,6 +397,39 @@ CREATE TABLE IF NOT EXISTS schema_version (
     applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+
+-- Email Log Table
+CREATE TABLE IF NOT EXISTS email_log (
+    log_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    recipient_email VARCHAR(255) NOT NULL,
+    email_type VARCHAR(100) NOT NULL,
+    subject VARCHAR(500),
+    status VARCHAR(50) DEFAULT 'pending',
+    error_message TEXT,
+    sent_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Email Preferences Table
+CREATE TABLE IF NOT EXISTS email_preferences (
+    preference_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    rate_limit_notifications BOOLEAN DEFAULT TRUE,
+    portfolio_reports BOOLEAN DEFAULT TRUE,
+    system_notifications BOOLEAN DEFAULT TRUE,
+    security_alerts BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id)
+);
+
+-- Indexes
+CREATE INDEX idx_email_log_recipient ON email_log(recipient_email);
+CREATE INDEX idx_email_log_type ON email_log(email_type);
+CREATE INDEX idx_email_log_status ON email_log(status);
+CREATE INDEX idx_email_preferences_user ON email_preferences(user_id);
+
+
 INSERT INTO schema_version (version, description) 
 VALUES ('v1.0', 'Initial schema - 15 tables created');
 
@@ -405,7 +438,11 @@ VALUES ('v1.0', 'Initial schema - 15 tables created');
 -- ============================================================================
 DO $$
 BEGIN
-    RAISE NOTICE '✅ SCHEMA v1.0 CREATED SUCCESSFULLY';
-    RAISE NOTICE '✅ 15 tables created';
-    RAISE NOTICE '✅ Default data inserted';
+    RAISE NOTICE ' SCHEMA v1.0 CREATED SUCCESSFULLY';
+    RAISE NOTICE ' 15 tables created';
+    RAISE NOTICE ' Default data inserted';
 END $$;
+
+
+ALTER TABLE refresh_tokens 
+ADD COLUMN IF NOT EXISTS revoked_reason VARCHAR(255);

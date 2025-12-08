@@ -54,7 +54,7 @@ class TokenRepository:
     
     async def is_token_revoked(self, jti: str) -> bool:
         """Check if token is revoked"""
-        query = "SELECT is_revoked FROM refresh_tokens WHERE jti = $1"
+        query = "SELECT revoked FROM refresh_tokens WHERE jti = $1"
         
         async with self.db.acquire() as conn:
             result = await conn.fetchval(query, jti)
@@ -70,7 +70,7 @@ class TokenRepository:
         if active_only:
             query = """
                 SELECT * FROM refresh_tokens
-                WHERE user_id = $1 AND is_revoked = FALSE AND expires_at > $2
+                WHERE user_id = $1 AND revoked = FALSE AND expires_at > $2
                 ORDER BY issued_at DESC
             """
             params = [user_id, get_current_ist_time()]
@@ -99,7 +99,7 @@ class TokenRepository:
         query = """
             UPDATE refresh_tokens
             SET 
-                is_revoked = TRUE,
+                revoked = TRUE,
                 revoked_reason = $1,
                 revoked_at = $2
             WHERE jti = $3
@@ -117,10 +117,10 @@ class TokenRepository:
         query = """
             UPDATE refresh_tokens
             SET 
-                is_revoked = TRUE,
+                revoked = TRUE,
                 revoked_reason = $1,
                 revoked_at = $2
-            WHERE user_id = $3 AND is_revoked = FALSE
+            WHERE user_id = $3 AND revoked = FALSE
         """
         
         async with self.db.acquire() as conn:
@@ -146,7 +146,7 @@ class TokenRepository:
         """Delete expired tokens (cleanup job)"""
         query = """
             DELETE FROM refresh_tokens
-            WHERE expires_at < $1 OR (is_revoked = TRUE AND revoked_at < $2)
+            WHERE expires_at < $1 OR (revoked = TRUE AND revoked_at < $2)
         """
         
         current_time = get_current_ist_time()

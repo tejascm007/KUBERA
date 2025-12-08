@@ -50,6 +50,29 @@ class AuthService:
         self.otp_repo = OTPRepository(db_pool)
         self.token_repo = TokenRepository(db_pool)
         self.email_service = EmailService(db_pool)
+
+    # ========================================================================
+    # HELPER: FORMAT USER FOR RESPONSE
+    # ========================================================================
+    def _format_user_response(self, user: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert user data types for API response"""
+        # Convert UUID to string
+        if user.get('user_id'):
+            user['user_id'] = str(user['user_id'])
+        
+        # Convert date to string
+        if user.get('date_of_birth') and hasattr(user['date_of_birth'], 'isoformat'):
+            user['date_of_birth'] = user['date_of_birth'].isoformat()
+        
+        # Add missing fields with defaults
+        user.setdefault('theme_preference', 'light')
+        user.setdefault('language_preference', 'en')
+        
+        # Remove sensitive data
+        user.pop('password_hash', None)
+        
+        return user
+
     
     # ========================================================================
     # REGISTRATION FLOW (3 STEPS)
@@ -69,6 +92,7 @@ class AuthService:
             UserAlreadyExistsException: Email already registered
         """
         # Check if email already exists
+        email = email.lower()
         existing_user = await self.user_repo.get_user_by_email(email)
         if existing_user:
             raise UserAlreadyExistsException("Email is already registered")
@@ -122,7 +146,8 @@ class AuthService:
             OTPInvalidException: Wrong OTP
         """
         # Get latest OTP
-        otp_record = await self.otp_repo.get_latest_otp(email, "registration")
+        email = email.lower()
+        otp_record = await self.otp_repo.get_latest_unverified_otp(email, "registration")
         
         if not otp_record:
             raise OTPNotFoundException("No OTP found for this email")
@@ -171,11 +196,11 @@ class AuthService:
             UserAlreadyExistsException: Username taken
             WeakPasswordException: Password too weak
         """
-        email = registration_data['email']
+        email = registration_data['email'].lower()
         
         # Verify OTP was completed
-        otp_record = await self.otp_repo.get_latest_otp(email, "registration")
-        if not otp_record or not otp_record['is_verified']:
+        otp_record = await self.otp_repo.get_latest_verified_otp(email, "registration")
+        if not otp_record:
             raise OTPNotFoundException("Please verify OTP first")
         
         # Check username availability
@@ -191,6 +216,15 @@ class AuthService:
         
         # Hash password
         password_hash = hash_password(password)
+
+        # ========================================================================
+        # FIX: Convert date_of_birth string to date object
+        # ========================================================================
+        date_of_birth = registration_data.get('date_of_birth')
+        if date_of_birth and isinstance(date_of_birth, str):
+            from datetime import date
+            # Convert "1995-05-15" to date object
+            date_of_birth = date.fromisoformat(date_of_birth)
         
         # Create user
         user_data = {
@@ -199,7 +233,7 @@ class AuthService:
             'password_hash': password_hash,
             'full_name': registration_data['full_name'],
             'phone': registration_data.get('phone'),
-            'date_of_birth': registration_data.get('date_of_birth'),
+            'date_of_birth': date_of_birth,
             'investment_style': registration_data.get('investment_style'),
             'risk_tolerance': registration_data.get('risk_tolerance'),
             'interested_sectors': registration_data.get('interested_sectors', [])
@@ -234,6 +268,9 @@ class AuthService:
         
         # Remove sensitive data
         user.pop('password_hash', None)
+
+        # Format user for response
+        user = self._format_user_response(user)
         
         return {
             "success": True,
@@ -283,6 +320,9 @@ class AuthService:
         
         # Update last login
         await self.user_repo.update_last_login(user['user_id'])
+
+        # Format user for response
+        user = self._format_user_response(user) 
         
         # Generate tokens
         access_token = create_access_token(
@@ -370,6 +410,7 @@ class AuthService:
         
         return {
             "access_token": access_token,
+            "refresh_token": refresh_token,
             "token_type": "bearer",
             "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
         }

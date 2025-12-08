@@ -23,16 +23,83 @@ class EmailRepository:
     # EMAIL PREFERENCES
     # ========================================================================
     
-    async def get_email_preferences(
-        self,
-        user_id: str
-    ) -> Optional[Dict[str, Any]]:
+    async def get_email_preferences(self, user_id: str) -> Dict[str, Any]:
         """Get email preferences for user"""
         query = "SELECT * FROM email_preferences WHERE user_id = $1"
         
         async with self.db.acquire() as conn:
             row = await conn.fetchrow(query, user_id)
-            return dict(row) if row else None
+            
+            # If no preferences exist, create default ones
+            if not row:
+                default_prefs = {
+                    'user_id': user_id,
+                    'portfolio_reports': True,
+                    'security_alerts': True,
+                    'rate_limit_notifications': True,
+                    'system_notifications': True,
+                    'promotional_emails': False
+                }
+                row = await self.create_email_preferences(default_prefs)
+            
+            # ========================================================================
+            # FIX: Convert UUIDs to strings
+            # ========================================================================
+            result = dict(row) if row else None
+            if result:
+                if result.get('preference_id'):
+                    result['preference_id'] = str(result['preference_id'])
+                if result.get('user_id'):
+                    result['user_id'] = str(result['user_id'])
+            
+            return result
+
+
+
+    async def create_email_preferences(
+        self,
+        preferences: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Create default email preferences"""
+        query = """
+            INSERT INTO email_preferences (
+                user_id, portfolio_reports, security_alerts,
+                rate_limit_notifications, system_notifications, promotional_emails
+            )
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (user_id) DO UPDATE SET
+                portfolio_reports = EXCLUDED.portfolio_reports,
+                security_alerts = EXCLUDED.security_alerts,
+                rate_limit_notifications = EXCLUDED.rate_limit_notifications,
+                system_notifications = EXCLUDED.system_notifications,
+                promotional_emails = EXCLUDED.promotional_emails
+            RETURNING *
+        """
+        
+        async with self.db.acquire() as conn:
+            row = await conn.fetchrow(
+                query,
+                preferences['user_id'],
+                preferences.get('portfolio_reports', True),
+                preferences.get('security_alerts', True),
+                preferences.get('rate_limit_notifications', True),
+                preferences.get('system_notifications', True),
+                preferences.get('promotional_emails', False)
+            )
+            
+            # ========================================================================
+            # FIX: Convert UUIDs to strings
+            # ========================================================================
+            result = dict(row) if row else None
+            if result:
+                if result.get('preference_id'):
+                    result['preference_id'] = str(result['preference_id'])
+                if result.get('user_id'):
+                    result['user_id'] = str(result['user_id'])
+            
+            return result
+
+
     
     async def update_email_preferences(
         self,
@@ -78,8 +145,19 @@ class EmailRepository:
         
         async with self.db.acquire() as conn:
             row = await conn.fetchrow(query, *values)
-            return dict(row) if row else None
-    
+            
+            # ========================================================================
+            # FIX: Convert UUIDs to strings
+            # ========================================================================
+            result = dict(row) if row else None
+            if result:
+                if result.get('preference_id'):
+                    result['preference_id'] = str(result['preference_id'])
+                if result.get('user_id'):
+                    result['user_id'] = str(result['user_id'])
+            
+            return result
+
     async def get_users_with_preference(
         self,
         preference_name: str,

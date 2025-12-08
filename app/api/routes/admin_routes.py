@@ -5,6 +5,11 @@ Endpoints for admin operations (15+ endpoints)
 
 from fastapi import APIRouter, Depends, status, Path, Query
 from typing import Dict, Any, Optional
+from app.db.repositories.rate_limit_repository import RateLimitRepository
+from app.db.repositories.system_repository import SystemRepository    
+from app.db.repositories.admin_repository import AdminRepository
+from datetime import datetime
+
 
 from app.schemas.requests.admin_requests import (
     AdminLoginSendOTPRequest,
@@ -168,44 +173,11 @@ async def get_user_detail(
     - Recent activity
     """
     db_pool = await get_db_pool()
-    from app.db.repositories.user_repository import UserRepository
-    from app.db.repositories.rate_limit_repository import RateLimitRepository
+    admin_service = AdminService(db_pool)
     
-    user_repo = UserRepository(db_pool)
-    rate_limit_repo = RateLimitRepository(db_pool)
-    
-    # Get user
-    user = await user_repo.get_user_by_id(user_id)
-    
-    # Get statistics
-    stats = await user_repo.get_user_statistics(user_id)
-    
-    # Get rate limit info
-    rate_limit_config = await rate_limit_repo.get_rate_limit_config()
-    user_limits = await rate_limit_repo.get_user_specific_limits(user_id)
-    is_whitelisted = await rate_limit_repo.is_user_whitelisted(user_id)
-    
-    # Get violations
-    violations_count = await rate_limit_repo.count_violations(user_id)
-    
-    current_limits = user_limits if user_limits else {
-        "burst": rate_limit_config['burst_limit_per_minute'],
-        "per_chat": rate_limit_config['per_chat_limit'],
-        "hourly": rate_limit_config['per_hour_limit'],
-        "daily": rate_limit_config['per_day_limit']
-    }
-    
-    return {
-        **user,
-        "total_chats": stats.get('total_chats', 0),
-        "total_prompts": stats.get('total_messages', 0),
-        "prompts_today": 0,  # Add if tracking needed
-        "prompts_this_week": 0,
-        "prompts_this_month": 0,
-        "current_rate_limits": current_limits,
-        "rate_limit_violations": violations_count,
-        "total_portfolio_entries": stats.get('total_portfolio_entries', 0)
-    }
+    # Use the service method that handles UUID conversion
+    user = await admin_service.get_user_detail(user_id)
+    return user
 
 
 @router.put(
@@ -490,7 +462,6 @@ async def get_violations(
     
     violations = await rate_limit_service.get_violations(limit, offset, violation_type)
     
-    from app.db.repositories.rate_limit_repository import RateLimitRepository
     rate_limit_repo = RateLimitRepository(db_pool)
     total = await rate_limit_repo.count_violations()
     
@@ -522,16 +493,22 @@ async def get_portfolio_report_settings(current_admin: Dict = Depends(get_curren
     - Next scheduled run
     """
     db_pool = await get_db_pool()
-    from app.db.repositories.system_repository import SystemRepository
     
     system_repo = SystemRepository(db_pool)
     system_status = await system_repo.get_system_status()
     
+    # ========================================================================
+    # FIX: Convert time and int to strings
+    # ========================================================================
+    send_time = system_status['portfolio_report_send_time']
+    if send_time and hasattr(send_time, 'isoformat'):
+        send_time = send_time.isoformat()
+    
     return {
         "frequency": system_status['portfolio_report_frequency'],
-        "send_time": system_status['portfolio_report_send_time'],
-        "send_day_weekly": system_status['portfolio_report_send_day_weekly'],
-        "send_day_monthly": system_status['portfolio_report_send_day_monthly'],
+        "send_time": send_time,
+        "send_day_weekly": str(system_status['portfolio_report_send_day_weekly']) if system_status['portfolio_report_send_day_weekly'] else None,
+        "send_day_monthly": str(system_status['portfolio_report_send_day_monthly']) if system_status['portfolio_report_send_day_monthly'] else None,
         "timezone": "Asia/Kolkata",
         "last_sent": system_status['portfolio_report_last_sent'],
         "next_scheduled": system_status['portfolio_report_next_scheduled']
@@ -558,26 +535,33 @@ async def update_portfolio_report_settings(
     - Logs admin action
     """
     db_pool = await get_db_pool()
-    from app.db.repositories.system_repository import SystemRepository
     
     system_repo = SystemRepository(db_pool)
     
     settings_dict = request.dict()
     updated = await system_repo.update_portfolio_report_settings(settings_dict)
     
+    # ========================================================================
+    # FIX: Convert time and int to strings
+    # ========================================================================
+    send_time = updated['portfolio_report_send_time']
+    if send_time and hasattr(send_time, 'isoformat'):
+        send_time = send_time.isoformat()
+    
     return {
         "success": True,
         "message": "Portfolio report settings updated successfully",
         "settings": {
             "frequency": updated['portfolio_report_frequency'],
-            "send_time": updated['portfolio_report_send_time'],
-            "send_day_weekly": updated['portfolio_report_send_day_weekly'],
-            "send_day_monthly": updated['portfolio_report_send_day_monthly'],
+            "send_time": send_time,
+            "send_day_weekly": str(updated['portfolio_report_send_day_weekly']) if updated['portfolio_report_send_day_weekly'] else None,
+            "send_day_monthly": str(updated['portfolio_report_send_day_monthly']) if updated['portfolio_report_send_day_monthly'] else None,
             "timezone": "Asia/Kolkata",
             "last_sent": updated['portfolio_report_last_sent'],
             "next_scheduled": updated['portfolio_report_next_scheduled']
         }
     }
+
 
 
 # ============================================================================
@@ -615,7 +599,6 @@ async def system_control(
         request.reason
     )
     
-    from datetime import datetime
     
     return {
         "success": True,
@@ -652,7 +635,6 @@ async def get_activity_logs(
     - Includes old/new values for changes
     """
     db_pool = await get_db_pool()
-    from app.db.repositories.admin_repository import AdminRepository
     
     admin_repo = AdminRepository(db_pool)
     

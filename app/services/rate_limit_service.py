@@ -281,8 +281,32 @@ class RateLimitService:
     # ========================================================================
     
     async def get_rate_limit_config(self) -> Dict[str, Any]:
-        """Get current rate limit configuration"""
-        return await self.rate_limit_repo.get_rate_limit_config()
+        """Get rate limit configuration"""
+        
+        config = await self.rate_limit_repo.get_rate_limit_config()
+        
+        # ========================================================================
+        # FIX 1: Convert UUID to string
+        # ========================================================================
+        if config.get('config_id'):
+            config['config_id'] = str(config['config_id'])
+        
+        # ========================================================================
+        # FIX 2: Parse JSON string to dict
+        # ========================================================================
+        import json
+        if config.get('user_specific_overrides'):
+            if isinstance(config['user_specific_overrides'], str):
+                config['user_specific_overrides'] = json.loads(config['user_specific_overrides'])
+        else:
+            config['user_specific_overrides'] = {}
+        
+        # Get whitelisted users
+        whitelisted_users = await self.rate_limit_repo.get_whitelisted_users()
+        config['whitelisted_users'] = [str(u['user_id']) for u in whitelisted_users]
+        
+        return config
+
     
     async def update_global_rate_limits(
         self,

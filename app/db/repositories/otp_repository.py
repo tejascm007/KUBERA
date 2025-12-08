@@ -47,24 +47,63 @@ class OTPRepository:
     # ========================================================================
     # READ
     # ========================================================================
-    
+        
     async def get_latest_otp(
+        self,
+        email: str,
+        otp_type: str,
+        verified: Optional[bool] = None  # ← NEW: Can filter by verified status
+    ) -> Optional[Dict[str, Any]]:
+        """
+            Get latest OTP for email and type
+            
+            Args:
+                email: User email
+                otp_type: Type of OTP (registration, password_reset, etc.)
+                verified: If True, get verified OTP. If False, get unverified. If None, get any.
+            """
+        if verified is None:
+            # Get latest OTP regardless of verification status
+            query = """
+                SELECT * FROM otps
+                WHERE email = $1 AND otp_type = $2
+                ORDER BY created_at DESC
+                LIMIT 1
+            """
+        else:
+            # Filter by verification status
+            query = """
+                SELECT * FROM otps
+                WHERE email = $1 AND otp_type = $2 AND is_verified = $3
+                ORDER BY created_at DESC
+                LIMIT 1
+            """
+        
+        async with self.db.acquire() as conn:
+            if verified is None:
+                row = await conn.fetchrow(query, email.lower(), otp_type)
+            else:
+                row = await conn.fetchrow(query, email.lower(), otp_type, verified)
+            return dict(row) if row else None
+
+
+    async def get_latest_unverified_otp(
         self,
         email: str,
         otp_type: str
     ) -> Optional[Dict[str, Any]]:
-        """Get latest unverified OTP for email and type"""
-        query = """
-            SELECT * FROM otps
-            WHERE email = $1 AND otp_type = $2 AND is_verified = FALSE
-            ORDER BY created_at DESC
-            LIMIT 1
-        """
-        
-        async with self.db.acquire() as conn:
-            row = await conn.fetchrow(query, email.lower(), otp_type)
-            return dict(row) if row else None
-    
+        """Get latest unverified OTP for email and type (used in Step 2)"""
+        return await self.get_latest_otp(email, otp_type, verified=False)
+
+
+    async def get_latest_verified_otp(
+        self,
+        email: str,
+        otp_type: str
+    ) -> Optional[Dict[str, Any]]:
+        """Get latest verified OTP for email and type (used in Step 3)"""
+        return await self.get_latest_otp(email, otp_type, verified=True)
+
     # ========================================================================
     # UPDATE
     # ========================================================================

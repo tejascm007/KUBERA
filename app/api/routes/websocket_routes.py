@@ -6,7 +6,6 @@ WebSocket endpoints for real-time chat streaming
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
 from typing import Optional
 import logging
-
 from app.api.websockets.chat_websocket import ChatWebSocketHandler
 from app.core.dependencies import verify_token
 from app.core.database import get_db_pool

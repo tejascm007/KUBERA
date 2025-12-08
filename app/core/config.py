@@ -37,9 +37,9 @@ class Settings(BaseSettings):
     # ==================== EMAIL ====================
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
-    SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
-    SMTP_FROM_EMAIL: Optional[str] = None
+    SMTP_USER: Optional[str] = Field(..., env="SMTP_USER")
+    SMTP_PASSWORD: Optional[str] = Field(..., env="SMTP_PASSWORD")
+    SMTP_FROM_EMAIL: Optional[str] = Field(..., env="SMTP_FROM_EMAIL")
     SMTP_FROM_NAME: str = "KUBERA"
 
     # # ==================== ANTHROPIC (REQUIRED) ====================
@@ -73,11 +73,11 @@ class Settings(BaseSettings):
     
     # ==================== STOCK DATA APIs (For MCP Servers) ====================
     # All optional - yfinance works without any key
-    ALPHA_VANTAGE_API_KEY: Optional[str] = None
-    FINNHUB_API_KEY: Optional[str] = None
-    MARKETAUX_API_KEY: Optional[str] = None
-    NEWSAPI_KEY: Optional[str] = None
-    INDIAN_API_KEY: Optional[str] = None
+    ALPHA_VANTAGE_API_KEY: Optional[str] = Field(..., env="ALPHA_VANTAGE_API_KEY")
+    FINNHUB_API_KEY: Optional[str] = Field(..., env="FINNHUB_API_KEY")
+    MARKETAUX_API_KEY: Optional[str] = Field(..., env="MARKETAUX_API_KEY")
+    NEWSAPI_KEY: Optional[str] = Field(..., env="NEWSAPI_KEY")
+    INDIAN_API_KEY: Optional[str] = Field(..., env="INDIAN_API_KEY")
     
     # ==================== BACKGROUND JOBS ====================
     PORTFOLIO_UPDATE_FREQUENCY: int = 30
@@ -85,6 +85,15 @@ class Settings(BaseSettings):
     PORTFOLIO_REPORT_SEND_TIME: str = "09:00"
     PORTFOLIO_REPORT_DAY_WEEKLY: int = 1
     PORTFOLIO_REPORT_DAY_MONTHLY: int = 1
+
+    # ========================================================================
+    # PASSWORD VALIDATION SETTINGS
+    # ========================================================================
+    PASSWORD_MIN_LENGTH: int = 8
+    PASSWORD_REQUIRE_UPPERCASE: bool = True
+    PASSWORD_REQUIRE_LOWERCASE: bool = True
+    PASSWORD_REQUIRE_DIGIT: bool = True
+    PASSWORD_REQUIRE_SPECIAL: bool = True
     
     # ==================== MISC ====================
     TIMEZONE: str = "Asia/Kolkata"

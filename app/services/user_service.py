@@ -46,16 +46,33 @@ class UserService:
         """
         user = await self.user_repo.get_user_by_id(user_id)
         
+        if not user:
+            return None
+        
+        # ========================================================================
+        # FORMAT USER RESPONSE
+        # ========================================================================
+        # Convert UUID to string
+        if user.get('user_id'):
+            user['user_id'] = str(user['user_id'])
+        
+        # Convert date to string
+        if user.get('date_of_birth') and hasattr(user['date_of_birth'], 'isoformat'):
+            user['date_of_birth'] = user['date_of_birth'].isoformat()
+        
+        # Add missing fields with defaults
+        user.setdefault('theme_preference', 'light')
+        user.setdefault('language_preference', 'en')
+        
         # Remove sensitive data
-        if user:
-            user.pop('password_hash', None)
+        user.pop('password_hash', None)
         
         return user
-    
+
     async def update_profile(
-        self,
-        user_id: str,
-        updates: Dict[str, Any]
+    self,
+    user_id: str,
+    updates: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Update user profile
@@ -76,22 +93,40 @@ class UserService:
         
         user = await self.user_repo.update_user(user_id, updates)
         
+        if not user:
+            return None
+        
+        # ========================================================================
+        # FORMAT USER RESPONSE
+        # ========================================================================
+        # Convert UUID to string
+        if user.get('user_id'):
+            user['user_id'] = str(user['user_id'])
+        
+        # Convert date to string
+        if user.get('date_of_birth') and hasattr(user['date_of_birth'], 'isoformat'):
+            user['date_of_birth'] = user['date_of_birth'].isoformat()
+        
+        # Add missing fields with defaults
+        user.setdefault('theme_preference', 'light')
+        user.setdefault('language_preference', 'en')
+        
         # Remove sensitive data
-        if user:
-            user.pop('password_hash', None)
+        user.pop('password_hash', None)
         
         logger.info(f"Profile updated for user: {user_id}")
         
         return user
+
     
     # ========================================================================
     # USERNAME UPDATE
     # ========================================================================
     
     async def update_username(
-        self,
-        user_id: str,
-        new_username: str
+    self,
+    user_id: str,
+    new_username: str
     ) -> Dict[str, Any]:
         """
         Update username
@@ -112,12 +147,31 @@ class UserService:
         
         user = await self.user_repo.update_username(user_id, new_username)
         
-        if user:
-            user.pop('password_hash', None)
+        if not user:
+            return None
+        
+        # ========================================================================
+        # FORMAT USER RESPONSE
+        # ========================================================================
+        # Convert UUID to string
+        if user.get('user_id'):
+            user['user_id'] = str(user['user_id'])
+        
+        # Convert date to string
+        if user.get('date_of_birth') and hasattr(user['date_of_birth'], 'isoformat'):
+            user['date_of_birth'] = user['date_of_birth'].isoformat()
+        
+        # Add missing fields with defaults
+        user.setdefault('theme_preference', 'light')
+        user.setdefault('language_preference', 'en')
+        
+        # Remove sensitive data
+        user.pop('password_hash', None)
         
         logger.info(f"Username updated for user: {user_id}")
         
         return user
+
     
     # ========================================================================
     # PASSWORD UPDATE

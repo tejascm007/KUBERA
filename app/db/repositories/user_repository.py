@@ -292,15 +292,17 @@ class UserRepository:
     # ========================================================================
     
     async def get_user_statistics(self, user_id: str) -> Dict[str, Any]:
-        """Get user statistics (chats, messages, portfolio count)"""
+        """Get user statistics"""
         query = """
             SELECT
                 (SELECT COUNT(*) FROM chats WHERE user_id = $1) as total_chats,
                 (SELECT COUNT(*) FROM messages WHERE user_id = $1) as total_messages,
-                (SELECT COUNT(*) FROM portfolios WHERE user_id = $1) as total_portfolio_entries,
-                (SELECT SUM(prompt_count) FROM chats WHERE user_id = $1) as total_prompts
+                (SELECT COALESCE(SUM(total_prompts), 0) FROM chats WHERE user_id = $1) as total_prompts,
+                (SELECT COUNT(*) FROM user_portfolio WHERE user_id = $1) as portfolio_entries,
+                (SELECT COALESCE(SUM(quantity * buy_price), 0) FROM user_portfolio WHERE user_id = $1) as total_invested
         """
         
         async with self.db.acquire() as conn:
             row = await conn.fetchrow(query, user_id)
             return dict(row) if row else {}
+

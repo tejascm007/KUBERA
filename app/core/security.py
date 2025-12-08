@@ -86,8 +86,8 @@ def create_access_token(
     
     encoded_jwt = jwt.encode(
         to_encode,
-        settings.JWT_SECRET_KEY,
-        algorithm=settings.JWT_ALGORITHM
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM
     )
     
     return encoded_jwt
@@ -124,8 +124,8 @@ def create_refresh_token(
     
     encoded_jwt = jwt.encode(
         to_encode,
-        settings.JWT_SECRET_KEY,
-        algorithm=settings.JWT_ALGORITHM
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM
     )
     
     return encoded_jwt, jti
@@ -148,8 +148,8 @@ def decode_token(token: str) -> Dict[str, Any]:
     try:
         payload = jwt.decode(
             token,
-            settings.JWT_SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM]
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM]
         )
         return payload
     except jwt.ExpiredSignatureError:

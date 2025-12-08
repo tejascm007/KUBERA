@@ -6,6 +6,7 @@ Business logic for admin operations
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import logging
+import json
 
 from app.db.repositories.admin_repository import AdminRepository
 from app.db.repositories.user_repository import UserRepository
@@ -66,7 +67,7 @@ class AdminService:
             email=email,
             otp=otp,
             otp_type="admin_login",
-            expire_minutes=settings.ADMIN_OTP_EXPIRE_MINUTES
+            expire_minutes=settings.OTP_EXPIRE_MINUTES
         )
         
         # Send OTP email
@@ -78,7 +79,7 @@ class AdminService:
             "success": True,
             "message": "OTP sent to your email",
             "email": email,
-            "otp_expires_in": settings.ADMIN_OTP_EXPIRE_MINUTES
+            "otp_expires_in": settings.OTP_EXPIRE_MINUTES
         }
     
     async def admin_login_verify_otp(self, email: str, otp: str) -> Dict[str, Any]:
@@ -90,7 +91,7 @@ class AdminService:
         if not otp_record:
             raise OTPNotFoundException("No OTP found")
         
-        if is_otp_expired(otp_record['created_at'], settings.ADMIN_OTP_EXPIRE_MINUTES):
+        if is_otp_expired(otp_record['created_at'], settings.OTP_EXPIRE_MINUTES):
             raise OTPExpiredException("OTP has expired")
         
         if not verify_otp(otp, otp_record['otp_hash']):
@@ -178,21 +179,104 @@ class AdminService:
     
     async def get_all_users(
         self,
-        limit: int = 100,
+        limit: int = 50,
         offset: int = 0,
         account_status: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Get all users"""
+        """Get all users with stats"""
         
+        # Use user_repo instead of admin_repo
         users = await self.user_repo.get_all_users(limit, offset, account_status)
         total = await self.user_repo.count_users(account_status)
+        
+        # ========================================================================
+        # FIX: Add stats and convert UUIDs for each user
+        # ========================================================================
+        for user in users:
+            # Convert UUID to string
+            if user.get('user_id'):
+                user_id = str(user['user_id'])
+                user['user_id'] = user_id
+                
+                # Get user stats
+                stats = await self.user_repo.get_user_statistics(user_id)
+                user['total_chats'] = stats.get('total_chats', 0)
+                user['total_prompts'] = stats.get('total_prompts', 0)
+            
+            # Convert date to string
+            if user.get('date_of_birth') and hasattr(user['date_of_birth'], 'isoformat'):
+                user['date_of_birth'] = user['date_of_birth'].isoformat()
+            
+            # Remove sensitive data
+            user.pop('password_hash', None)
         
         return {
             "success": True,
             "total_users": total,
             "users": users
         }
-    
+
+    async def get_user_detail(self, user_id: str) -> Dict[str, Any]:
+        """Get detailed user information"""
+        
+        # Get user
+        user = await self.user_repo.get_user_by_id(user_id)
+        
+        if not user:
+            from app.exceptions.custom_exceptions import UserNotFoundException
+            raise UserNotFoundException(user_id)
+        
+        # Convert UUID to string
+        user_id_str = str(user['user_id']) if user.get('user_id') else user_id
+        user['user_id'] = user_id_str
+        
+        # Convert date to string
+        if user.get('date_of_birth') and hasattr(user['date_of_birth'], 'isoformat'):
+            user['date_of_birth'] = user['date_of_birth'].isoformat()
+        
+        # Get user stats
+        stats = await self.user_repo.get_user_statistics(user_id_str)
+        user['total_chats'] = stats.get('total_chats', 0)
+        user['total_prompts'] = stats.get('total_prompts', 0)
+        user['portfolio_entries'] = stats.get('portfolio_entries', 0)
+        
+        # Convert Decimal to float
+        if user.get('total_invested'):
+            user['total_invested'] = float(user['total_invested'])
+        
+        # ========================================================================
+        # ADD MISSING FIELDS
+        # ========================================================================
+        user['prompts_today'] = 0
+        user['prompts_this_week'] = 0
+        user['prompts_this_month'] = 0
+        
+        # Get rate limit info
+        rate_limit_config = await self.rate_limit_repo.get_rate_limit_config()
+        user_limits = await self.rate_limit_repo.get_user_specific_limits(user_id_str)
+        
+        if user_limits:
+            user['current_rate_limits'] = user_limits
+        else:
+            user['current_rate_limits'] = {
+                "burst": rate_limit_config.get('burst_limit_per_minute', 10),
+                "per_chat": rate_limit_config.get('per_chat_limit', 50),
+                "hourly": rate_limit_config.get('per_hour_limit', 100),
+                "daily": rate_limit_config.get('per_day_limit', 500)
+            }
+        
+        # Get violations count
+        violations_count = await self.rate_limit_repo.count_violations(user_id_str)
+        user['rate_limit_violations'] = violations_count
+        
+        user['total_portfolio_entries'] = user['portfolio_entries']
+        
+        # Remove sensitive data
+        user.pop('password_hash', None)
+        
+        return user
+
+
     async def deactivate_user(
         self,
         user_id: str,
@@ -209,17 +293,21 @@ class AdminService:
             "action": "user_deactivated",
             "target_type": "user",
             "target_id": user_id,
-            "old_value": {"status": "active"},
-            "new_value": {"status": "deactivated", "reason": reason}
+            "old_value": json.dumps({"status": "active"}),  # Convert to JSON string
+            "new_value": json.dumps({"status": "deactivated", "reason": reason})  # Convert to JSON string
         })
         
-        # Send email to user
-        await self.email_service.send_account_deactivated_email(user, reason)
+        # Send email to user (optional, may fail if email service not implemented)
+        try:
+            await self.email_service.send_account_deactivated_email(user, reason)
+        except Exception as e:
+            logger.warning(f"Failed to send deactivation email: {e}")
         
         logger.info(f"User deactivated by admin: {user_id}")
         
         return user
-    
+
+
     async def reactivate_user(
         self,
         user_id: str,
@@ -235,12 +323,15 @@ class AdminService:
             "action": "user_reactivated",
             "target_type": "user",
             "target_id": user_id,
-            "old_value": {"status": "deactivated"},
-            "new_value": {"status": "active"}
+            "old_value": json.dumps({"status": "deactivated"}),  # Convert to JSON string
+            "new_value": json.dumps({"status": "active"})  # Convert to JSON string
         })
         
-        # Send email to user
-        await self.email_service.send_account_reactivated_email(user)
+        # Send email to user (optional)
+        try:
+            await self.email_service.send_account_reactivated_email(user)
+        except Exception as e:
+            logger.warning(f"Failed to send reactivation email: {e}")
         
         logger.info(f"User reactivated by admin: {user_id}")
         
@@ -251,10 +342,10 @@ class AdminService:
     # ========================================================================
     
     async def system_control(
-        self,
-        action: str,
-        admin_id: str,
-        reason: Optional[str] = None
+    self,
+    action: str,
+    admin_id: str,
+    reason: Optional[str] = None
     ) -> Dict[str, Any]:
         """Control system status (stop/start/restart)"""
         
@@ -272,18 +363,23 @@ class AdminService:
         # Update system status
         updated = await self.system_repo.update_system_status(new_status)
         
-        # Log activity
+        # Log activity - WITH JSON CONVERSION
+        import json
         await self.admin_repo.log_activity({
             "admin_id": admin_id,
             "action": f"system_{action}",
             "target_type": "system",
-            "old_value": {"status": old_status},
-            "new_value": {"status": new_status, "reason": reason}
+            "old_value": json.dumps({"status": old_status}),  # CONVERT TO JSON STRING
+            "new_value": json.dumps({"status": new_status, "reason": reason})  # CONVERT TO JSON STRING
         })
         
-        # Send email to all users
-        await self.email_service.send_system_status_email(new_status, reason)
+        # Send email to all users (optional - may not be implemented)
+        try:
+            await self.email_service.send_system_status_email(new_status, reason)
+        except Exception as e:
+            logger.warning(f"Failed to send system status email: {e}")
         
         logger.info(f"System {action} by admin: {admin_id}")
         
         return updated
+

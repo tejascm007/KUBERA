@@ -6,8 +6,8 @@ Updates stock prices for all portfolios (every 30 minutes)
 import logging
 from datetime import datetime
 import asyncpg
-
 from app.services.portfolio_service import PortfolioService
+
 
 logger = logging.getLogger(__name__)
 

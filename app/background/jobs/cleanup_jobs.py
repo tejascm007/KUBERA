@@ -6,7 +6,6 @@ Cleans up expired OTPs, revoked tokens, and other temporary data
 import logging
 from datetime import datetime, timedelta
 import asyncpg
-
 from app.db.repositories.otp_repository import OTPRepository
 from app.db.repositories.token_repository import TokenRepository
 

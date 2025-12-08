@@ -6,7 +6,6 @@ Sends scheduled portfolio reports to users (daily/weekly/monthly)
 import logging
 from datetime import datetime
 import asyncpg
-
 from app.db.repositories.system_repository import SystemRepository
 from app.db.repositories.user_repository import UserRepository
 from app.db.repositories.email_repository import EmailRepository

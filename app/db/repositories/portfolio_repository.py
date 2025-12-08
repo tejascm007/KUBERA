@@ -29,13 +29,21 @@ class PortfolioRepository:
     ) -> Dict[str, Any]:
         """Create a new portfolio entry"""
         query = """
-            INSERT INTO portfolios (
+            INSERT INTO user_portfolio (
                 user_id, stock_symbol, exchange, quantity,
                 buy_price, buy_date, investment_type, notes
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING *
         """
+        
+        # ========================================================================
+        # FIX: Convert date string to date object
+        # ========================================================================
+        buy_date = portfolio_data.get('buy_date')
+        if buy_date and isinstance(buy_date, str):
+            from datetime import date
+            buy_date = date.fromisoformat(buy_date)
         
         async with self.db.acquire() as conn:
             row = await conn.fetchrow(
@@ -45,11 +53,12 @@ class PortfolioRepository:
                 portfolio_data.get('exchange', 'NSE').upper(),
                 portfolio_data.get('quantity'),
                 portfolio_data.get('buy_price'),
-                portfolio_data.get('buy_date'),
+                buy_date,  # ← Use converted date object
                 portfolio_data.get('investment_type'),
                 portfolio_data.get('notes')
             )
             return dict(row) if row else None
+
     
     # ========================================================================
     # READ
@@ -60,7 +69,7 @@ class PortfolioRepository:
         portfolio_id: str
     ) -> Optional[Dict[str, Any]]:
         """Get portfolio entry by ID"""
-        query = "SELECT * FROM portfolios WHERE portfolio_id = $1"
+        query = "SELECT * FROM user_portfolio WHERE portfolio_id = $1"
         
         async with self.db.acquire() as conn:
             row = await conn.fetchrow(query, portfolio_id)
@@ -72,7 +81,7 @@ class PortfolioRepository:
     ) -> List[Dict[str, Any]]:
         """Get all portfolio entries for a user"""
         query = """
-            SELECT * FROM portfolios
+            SELECT * FROM user_portfolio
             WHERE user_id = $1
             ORDER BY created_at DESC
         """
@@ -88,7 +97,7 @@ class PortfolioRepository:
     ) -> Optional[Dict[str, Any]]:
         """Check if user already has this stock in portfolio"""
         query = """
-            SELECT * FROM portfolios
+            SELECT * FROM user_portfolio
             WHERE user_id = $1 AND stock_symbol = $2
         """
         
@@ -98,7 +107,7 @@ class PortfolioRepository:
     
     async def get_all_unique_stock_symbols(self) -> List[str]:
         """Get all unique stock symbols across all users"""
-        query = "SELECT DISTINCT stock_symbol FROM portfolios"
+        query = "SELECT DISTINCT stock_symbol FROM user_portfolio"
         
         async with self.db.acquire() as conn:
             rows = await conn.fetch(query)
@@ -106,7 +115,7 @@ class PortfolioRepository:
     
     async def count_user_portfolio_entries(self, user_id: str) -> int:
         """Count portfolio entries for user"""
-        query = "SELECT COUNT(*) FROM portfolios WHERE user_id = $1"
+        query = "SELECT COUNT(*) FROM user_portfolio WHERE user_id = $1"
         
         async with self.db.acquire() as conn:
             return await conn.fetchval(query, user_id)
@@ -144,7 +153,7 @@ class PortfolioRepository:
         values.append(portfolio_id)
         
         query = f"""
-            UPDATE portfolios
+            UPDATE user_portfolio
             SET {', '.join(set_clauses)}
             WHERE portfolio_id = ${param_count}
             RETURNING *
@@ -161,13 +170,13 @@ class PortfolioRepository:
     ) -> None:
         """Update current price and calculate gains/losses"""
         query = """
-            UPDATE portfolios
+            UPDATE user_portfolio
             SET 
                 current_price = $1,
                 current_value = quantity * $1,
                 gain_loss = (quantity * $1) - (quantity * buy_price),
                 gain_loss_percent = (((quantity * $1) - (quantity * buy_price)) / (quantity * buy_price)) * 100,
-                price_last_updated = $2,
+                last_price_update = $2,
                 updated_at = $2
             WHERE portfolio_id = $3
         """
@@ -191,13 +200,13 @@ class PortfolioRepository:
             price_updates: List of dicts with 'stock_symbol' and 'price'
         """
         query = """
-            UPDATE portfolios
+            UPDATE user_portfolio
             SET 
                 current_price = $1,
                 current_value = quantity * $1,
                 gain_loss = (quantity * $1) - (quantity * buy_price),
                 gain_loss_percent = (((quantity * $1) - (quantity * buy_price)) / (quantity * buy_price)) * 100,
-                price_last_updated = $2,
+                last_price_update = $2,
                 updated_at = $2
             WHERE stock_symbol = $3
         """
@@ -220,7 +229,7 @@ class PortfolioRepository:
     
     async def delete_portfolio_entry(self, portfolio_id: str) -> bool:
         """Delete a portfolio entry"""
-        query = "DELETE FROM portfolios WHERE portfolio_id = $1"
+        query = "DELETE FROM user_portfolio WHERE portfolio_id = $1"
         
         async with self.db.acquire() as conn:
             result = await conn.execute(query, portfolio_id)
@@ -243,8 +252,8 @@ class PortfolioRepository:
                         (SUM(gain_loss) / SUM(quantity * buy_price)) * 100
                     ELSE 0
                 END as total_gain_loss_percent,
-                MAX(price_last_updated) as last_updated
-            FROM portfolios
+                MAX(last_price_update) as last_updated
+            FROM user_portfolio
             WHERE user_id = $1
         """
         

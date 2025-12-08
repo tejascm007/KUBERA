@@ -23,8 +23,8 @@ class ProfileResponse(BaseModel):
     interested_sectors: Optional[list[str]] = None
     account_status: str
     email_verified: bool
-    theme_preference: str
-    language_preference: str
+    theme_preference: Optional[str] = "light" 
+    language_preference: Optional[str] = "en" 
     created_at: datetime
     updated_at: datetime
     last_login_at: Optional[datetime] = None

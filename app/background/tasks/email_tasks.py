@@ -6,7 +6,6 @@ Async tasks for sending emails without blocking main thread
 import logging
 import asyncio
 from typing import Dict, Any, List
-
 from app.services.email_service import EmailService
 from app.db.database import get_db_pool
 

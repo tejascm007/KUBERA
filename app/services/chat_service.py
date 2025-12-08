@@ -39,6 +39,17 @@ class ChatService:
             Created chat
         """
         chat = await self.chat_repo.create_chat(user_id, chat_name)
+
+        # ========================================================================
+        # FIX: Convert UUIDs to strings
+        # ========================================================================
+        if chat:
+            if chat.get('chat_id'):
+                chat['chat_id'] = str(chat['chat_id'])
+            if chat.get('user_id'):
+                chat['user_id'] = str(chat['user_id'])
+        
+        return chat
         
         logger.info(f"Chat created for user {user_id}: {chat['chat_id']}")
         
@@ -62,6 +73,16 @@ class ChatService:
             List of chats with count
         """
         chats = await self.chat_repo.get_user_chats(user_id, limit, offset)
+        
+        # ========================================================================
+        # FIX: Convert UUIDs to strings for all chats
+        # ========================================================================
+        for chat in chats:
+            if chat.get('chat_id'):
+                chat['chat_id'] = str(chat['chat_id'])
+            if chat.get('user_id'):
+                chat['user_id'] = str(chat['user_id'])
+        
         total = await self.chat_repo.count_user_chats(user_id)
         
         return {
@@ -69,6 +90,7 @@ class ChatService:
             "total_chats": total,
             "chats": chats
         }
+
     
     async def get_chat_with_messages(
         self,
@@ -95,7 +117,27 @@ class ChatService:
         if not chat:
             raise ChatNotFoundException(chat_id)
         
+        # ========================================================================
+        # FIX: Convert UUIDs to strings for chat
+        # ========================================================================
+        if chat.get('chat_id'):
+            chat['chat_id'] = str(chat['chat_id'])
+        if chat.get('user_id'):
+            chat['user_id'] = str(chat['user_id'])
+        
         messages = await self.chat_repo.get_chat_messages(chat_id, limit, offset)
+        
+        # ========================================================================
+        # FIX: Convert UUIDs to strings for messages
+        # ========================================================================
+        for message in messages:
+            if message.get('message_id'):
+                message['message_id'] = str(message['message_id'])
+            if message.get('chat_id'):
+                message['chat_id'] = str(message['chat_id'])
+            if message.get('user_id'):
+                message['user_id'] = str(message['user_id'])
+        
         total_messages = await self.chat_repo.count_chat_messages(chat_id)
         
         return {
@@ -104,6 +146,7 @@ class ChatService:
             "messages": messages,
             "total_messages": total_messages
         }
+
     
     async def rename_chat(
         self,
@@ -122,9 +165,19 @@ class ChatService:
         """
         chat = await self.chat_repo.rename_chat(chat_id, new_name)
         
+        # ========================================================================
+        # FIX: Convert UUIDs to strings
+        # ========================================================================
+        if chat:
+            if chat.get('chat_id'):
+                chat['chat_id'] = str(chat['chat_id'])
+            if chat.get('user_id'):
+                chat['user_id'] = str(chat['user_id'])
+        
         logger.info(f"Chat renamed: {chat_id}")
         
         return chat
+
     
     async def delete_chat(self, chat_id: str) -> bool:
         """

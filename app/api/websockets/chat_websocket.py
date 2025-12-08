@@ -7,10 +7,9 @@ import json
 import logging
 from typing import Dict, Any
 from datetime import datetime
-
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
-
+from app.mcp.config import MCPServerConfig
 from app.mcp.llm_integration import llm_mcp_orchestrator
 from app.services.chat_service import ChatService
 from app.services.rate_limit_service import RateLimitService
@@ -42,14 +41,14 @@ class ChatWebSocketHandler:
             "timestamp": datetime.now().isoformat()
         })
         
-        logger.info(f"✅ WebSocket connected: user {self.user_id}")
+        logger.info(f" WebSocket connected: user {self.user_id}")
     
     async def disconnect(self):
         """Close WebSocket connection"""
         if self.is_connected and self.websocket.client_state == WebSocketState.CONNECTED:
             await self.websocket.close()
         self.is_connected = False
-        logger.info(f"❌ WebSocket disconnected: user {self.user_id}")
+        logger.info(f" WebSocket disconnected: user {self.user_id}")
     
     async def send_message(self, message: Dict[str, Any]):
         """Send message to client"""
@@ -215,7 +214,6 @@ class ChatWebSocketHandler:
     
     def _get_servers_from_tools(self, tools_used: list) -> list:
         """Map tools to their respective servers"""
-        from app.mcp.config import MCPServerConfig
         
         servers = set()
         
