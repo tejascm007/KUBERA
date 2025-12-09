@@ -39,7 +39,7 @@ class MCPServerConfig:
             "command": "uv",
             "args": ["run",
             "fastmcp",
-            "run",os.path.join(MCP_SERVERS_PATH, "gov_compliance.py")],
+            "run",os.path.join(MCP_SERVERS_PATH, "market_tech.py")],
             "env": None
         },
         
@@ -51,7 +51,7 @@ class MCPServerConfig:
             "command": "uv",
             "args": ["run",
             "fastmcp",
-            "run",os.path.join(MCP_SERVERS_PATH, "market_tech.py")],
+            "run",os.path.join(MCP_SERVERS_PATH, "gov_compliance.py")],
             "env": None
         },
         

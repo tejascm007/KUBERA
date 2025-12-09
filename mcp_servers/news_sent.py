@@ -10,7 +10,9 @@ import requests
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 import os
+import pandas as pd
 import json
+from app.core.utils import fetch_ticker_safe, fetch_history_safe, fetch_info_safe, fetch_financials_safe
 
 # Initialize FastMCP
 mcp = FastMCP("NewsSentimentServer")
@@ -85,8 +87,8 @@ def fetch_news_articles(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = yf.Ticker(ticker)
-        info = stock.info
+        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        info = await fetch_info_safe(stock, timeout=10)
         company_name = info.get("longName", stock_symbol)
         
         # Get news from Yahoo Finance
@@ -269,8 +271,8 @@ def fetch_analyst_ratings(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = yf.Ticker(ticker)
-        info = stock.info
+        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        info = await fetch_info_safe(stock, timeout=10)
         
         # Get recommendations
         recommendations = stock.recommendations
@@ -423,7 +425,7 @@ def fetch_company_announcements(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = yf.Ticker(ticker)
+        stock = await fetch_ticker_safe(ticker, timeout=10)
         
         # Calendar events (earnings, dividends, etc.)
         calendar = stock.calendar
@@ -556,14 +558,14 @@ def fetch_news_impact_analysis(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = yf.Ticker(ticker)
+        stock = await fetch_ticker_safe(ticker, timeout=10)
         
         # Get price data around event
         event_dt = datetime.strptime(event_date, "%Y-%m-%d")
         start_date = event_dt - timedelta(days=5)
         end_date = event_dt + timedelta(days=5)
         
-        hist = stock.history(start=start_date, end=end_date)
+        hist = await fetch_history_safe(stock, start=start_date, end=end_date)
         
         if hist.empty:
             return handle_error(
@@ -629,8 +631,8 @@ def fetch_management_commentary(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = yf.Ticker(ticker)
-        info = stock.info
+        stock = await fetch_ticker_safe(ticker, timeout=10)
+        info = await fetch_info_safe(stock, timeout=10)
         
         result = {
             "stock_symbol": stock_symbol,
@@ -660,5 +662,4 @@ def fetch_management_commentary(
 
 
 if __name__ == "__main__":
-    import pandas as pd  # Import here for insider transactions
     mcp.run()

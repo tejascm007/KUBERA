@@ -14,6 +14,8 @@ import json
 import base64
 from io import BytesIO
 import os
+from app.core.utils import fetch_ticker_safe, fetch_history_safe, fetch_info_safe, fetch_financials_safe
+
 
 # Try to import plotting libraries
 try:
@@ -77,13 +79,12 @@ def generate_price_volume_chart(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = yf.Ticker(ticker)
-        
+        stock = await fetch_ticker_safe(ticker, timeout=10) 
         # Map period
         period_map = {"1m": "1mo", "3m": "3mo", "6m": "6mo", "1y": "1y", "3y": "3y"}
         yf_period = period_map.get(period, "6mo")
         
-        hist = stock.history(period=yf_period)
+        hist = await fetch_history_safe(stock, period=yf_period)
         
         if hist.empty:
             return handle_error(
@@ -202,7 +203,7 @@ def generate_candlestick_chart(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = yf.Ticker(ticker)
+        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
         
         # Map period and interval
         period_map = {"1m": "1mo", "3m": "3mo", "6m": "6mo", "1y": "1y"}
@@ -211,7 +212,7 @@ def generate_candlestick_chart(
         yf_period = period_map.get(period, "3mo")
         yf_interval = interval_map.get(interval, "1d")
         
-        hist = stock.history(period=yf_period, interval=yf_interval)
+        hist = await fetch_history_safe(stock, period=yf_period, interval=yf_interval)
         
         if hist.empty:
             return handle_error(
@@ -315,12 +316,12 @@ def generate_technical_indicators_chart(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = yf.Ticker(ticker)
+        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
         
         period_map = {"3m": "3mo", "6m": "6mo", "1y": "1y"}
         yf_period = period_map.get(period, "6mo")
         
-        hist = stock.history(period=yf_period)
+        hist = await fetch_history_safe(stock, period=yf_period)
         
         if hist.empty:
             return handle_error(
@@ -475,8 +476,8 @@ def generate_fundamental_comparison_chart(
         
         for symbol in stock_symbols[:5]:  # Limit to 5 stocks
             ticker = get_stock_ticker(symbol)
-            stock = yf.Ticker(ticker)
-            info = stock.info
+            stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+            info = await fetch_info_safe(stock, timeout=10)
             
             stock_data = {}
             
@@ -562,7 +563,7 @@ def generate_financial_trend_chart(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = yf.Ticker(ticker)
+        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
         
         result = {
             "stock_symbol": stock_symbol,
@@ -573,7 +574,7 @@ def generate_financial_trend_chart(
         }
         
         if metric == "Revenue":
-            financials = stock.financials
+            financials = await fetch_financials_safe(stock)
             if not financials.empty:
                 revenue_data = []
                 for col in financials.columns[:years]:
@@ -586,7 +587,7 @@ def generate_financial_trend_chart(
                 result["trend_data"] = revenue_data
         
         elif metric == "Profit":
-            financials = stock.financials
+            financials = await fetch_financials_safe(stock)
             if not financials.empty:
                 profit_data = []
                 for col in financials.columns[:years]:
@@ -669,13 +670,13 @@ def generate_performance_vs_benchmark_chart(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = yf.Ticker(ticker)
+        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
         benchmark_ticker = yf.Ticker(benchmark)
         
         period_map = {"6m": "6mo", "1y": "1y", "3y": "3y", "5y": "5y"}
         yf_period = period_map.get(period, "1y")
         
-        stock_hist = stock.history(period=yf_period)
+        stock_hist = await fetch_history_safe(stock, period=yf_period)
         benchmark_hist = benchmark_ticker.history(period=yf_period)
         
         if stock_hist.empty or benchmark_hist.empty:
@@ -769,8 +770,8 @@ def generate_valuation_heatmap(
         
         for symbol in stock_symbols[:20]:  # Limit to 20 stocks
             ticker = get_stock_ticker(symbol)
-            stock = yf.Ticker(ticker)
-            info = stock.info
+            stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+            info = await fetch_info_safe(stock, timeout=10)
             
             valuation_data.append({
                 "Stock": symbol,
@@ -922,7 +923,7 @@ def generate_dividend_timeline_chart(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = yf.Ticker(ticker)
+        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
         
         dividends = stock.dividends
         
@@ -1007,8 +1008,9 @@ def generate_risk_return_scatter(
         for symbol in stock_symbols[:20]:  # Limit to 20 stocks
             try:
                 ticker = get_stock_ticker(symbol)
-                stock = yf.Ticker(ticker)
-                hist = stock.history(period=yf_period)
+                stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+                info = await fetch_info_safe(stock, timeout=10)
+                hist = await fetch_history_safe(stock, period=yf_period)
                 
                 if not hist.empty:
                     returns = hist['Close'].pct_change().dropna()
@@ -1095,8 +1097,7 @@ def validate_chart_data(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = yf.Ticker(ticker)
-        
+        stock = await fetch_ticker_safe(ticker, timeout=10)        
         result = {
             "stock_symbol": stock_symbol,
             "data_type": data_type,
@@ -1106,7 +1107,7 @@ def validate_chart_data(
         }
         
         if data_type == "price":
-            hist = stock.history(period="1y")
+            hist = await fetch_history_safe(stock, period="1y")
             if not hist.empty:
                 result["available_periods"] = ["1m", "3m", "6m", "1y", "3y", "5y"]
                 result["data_points"] = len(hist)
@@ -1116,7 +1117,7 @@ def validate_chart_data(
                 result["data_quality"] = "unavailable"
         
         elif data_type == "fundamentals":
-            info = stock.info
+            info = await fetch_info_safe(stock)
             if info and 'symbol' in info:
                 result["available_data"] = list(info.keys())[:20]
             else:

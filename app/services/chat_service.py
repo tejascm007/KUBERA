@@ -49,7 +49,7 @@ class ChatService:
             if chat.get('user_id'):
                 chat['user_id'] = str(chat['user_id'])
         
-        return chat
+        
         
         logger.info(f"Chat created for user {user_id}: {chat['chat_id']}")
         

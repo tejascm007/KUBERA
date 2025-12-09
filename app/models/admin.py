@@ -13,6 +13,7 @@ class AdminCreate(AdminBase):
     is_super_admin: bool = True
 
 
+
 class AdminInDBBase(AdminBase):
     admin_id: str
     is_super_admin: bool = True

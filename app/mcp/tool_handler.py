@@ -271,7 +271,7 @@ class MCPToolHandler:
         """
         openai_tools = []
         
-        for tool in self.mcp_client.get_all_tools():
+        for tool in self.client.get_all_tools():
             # Convert Langchain tool to OpenAI format
             openai_tools.append({
                 "type": "function",
