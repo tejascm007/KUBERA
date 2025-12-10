@@ -1,156 +1,186 @@
 """
-WebSocket Routes
-WebSocket endpoints for real-time chat streaming
+WebSocket Routes for Chat
+Handles WebSocket connections and routing
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
-from typing import Optional
 import logging
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, Query
 from app.api.websockets.chat_websocket import ChatWebSocketHandler
-from app.core.dependencies import verify_token
+from app.core.security import verify_token
+from app.exceptions.custom_exceptions import AuthenticationException
 from app.core.database import get_db_pool
-from app.exceptions.custom_exceptions import UnauthorizedException
 
-router = APIRouter(tags=["WebSocket"])
 logger = logging.getLogger(__name__)
 
-
-async def get_current_user_ws(
-    websocket: WebSocket,
-    token: Optional[str] = Query(None, description="JWT access token")
-):
-    """
-    WebSocket authentication dependency
-    
-    Authenticates user via JWT token in query parameter
-    """
-    if not token:
-        await websocket.close(code=1008, reason="Authentication required")
-        raise UnauthorizedException("Token required")
-    
-    # Verify token
-    payload = verify_token(token, token_type="access")
-    
-    if not payload:
-        await websocket.close(code=1008, reason="Invalid token")
-        raise UnauthorizedException("Invalid token")
-    
-    return {
-        "user_id": payload.get("sub"),
-        "email": payload.get("email")
-    }
+router = APIRouter(prefix="/ws", tags=["WebSocket"])
 
 
-@router.websocket("/ws/chat")
-async def websocket_chat_endpoint(
-    websocket: WebSocket,
-    token: Optional[str] = Query(None, description="JWT access token")
-):
+#========================================================================
+# JWT TOKEN EXTRACTION FROM WEBSOCKET
+# ========================================================================
+
+async def get_token_from_query(websocket: WebSocket) -> str:
     """
-    **WebSocket Chat Endpoint**
+    Extract JWT token from WebSocket query parameters
     
-    Real-time bidirectional chat with streaming AI responses
+    Args:
+        websocket: WebSocket connection
     
-    **Connection:**
-    ```
-    ws://localhost:8000/ws/chat?token=YOUR_JWT_TOKEN
-    ```
+    Returns:
+        JWT token string
     
-    **Message Format (Client -> Server):**
-    ```
-    {
-        "type": "message",
-        "chat_id": "uuid",
-        "message": "Analyze INFY stock"
-    }
-    ```
-    
-    **Response Format (Server -> Client):**
-    
-    1. **Rate Limit Info:**
-    ```
-    {
-        "type": "rate_limit_info",
-        "current_usage": {"burst": 1, "per_chat": 5, "hourly": 20, "daily": 50},
-        "limits": {"burst": 10, "per_chat": 50, "hourly": 150, "daily": 1000}
-    }
-    ```
-    
-    2. **Text Chunks (Streaming):**
-    ```
-    {
-        "type": "text_chunk",
-        "content": "Based on the fundamentals..."
-    }
-    ```
-    
-    3. **Tool Execution:**
-    ```
-    {
-        "type": "tool_executing",
-        "tool_name": "get_stock_info",
-        "tool_id": "tool_123"
-    }
-    ```
-    
-    4. **Completion:**
-    ```
-    {
-        "type": "message_complete",
-        "message_id": "uuid",
-        "metadata": {
-            "tokens_used": 1500,
-            "tools_used": ["get_stock_info", "get_technical_indicators"],
-            "processing_time_ms": 3500
-        }
-    }
-    ```
-    
-    5. **Errors:**
-    ```
-    {
-        "type": "error",
-        "error": "Error message"
-    }
-    ```
-    
-    6. **Rate Limit Exceeded:**
-    ```
-    {
-        "type": "rate_limit_exceeded",
-        "error": "Daily rate limit exceeded",
-        "details": {"violation_type": "daily", "limit": 1000, "used": 1000}
-    }
-    ```
+    Raises:
+        AuthenticationException: If token not found
     """
+    
+    # Get token from query parameter
+    token = websocket.query_params.get("token")
+    
+    if token:
+        logger.info("Token extracted from query parameter")
+        return token
+    
+    # No token found
+    logger.error("No JWT token found in query params")
+    raise AuthenticationException("Missing authentication token")
+
+
+# ========================================================================
+# WEBSOCKET ENDPOINT
+# ========================================================================
+
+@router.websocket("/chat/{chat_id}")
+async def websocket_chat(websocket: WebSocket, chat_id: str):
+    """
+    WebSocket endpoint for real-time chat
+    
+    URL: ws://localhost:8000/ws/chat/{chat_id}?token=<JWT_TOKEN>
+    
+    Args:
+        websocket: WebSocket connection
+        chat_id: Chat session ID (UUID)
+    """
+    
+    # ========================================================================
+    # STEP 1: ACCEPT CONNECTION IMMEDIATELY (BEFORE AUTH)
+    # ========================================================================
+    
+    await websocket.accept()
+    logger.info(f"WebSocket connection accepted for chat {chat_id}")
+    
     try:
-        # Authenticate user
-        current_user = await get_current_user_ws(websocket, token)
+        # ========================================================================
+        # STEP 2: AUTHENTICATE (AFTER ACCEPTING)
+        # ========================================================================
         
-        # Get database pool
-        db_pool = await get_db_pool()
+        try:
+            # Extract JWT token from query params
+            token = await get_token_from_query(websocket)
+            
+            # Verify token
+            payload = verify_token(token)
+            user_id = payload.get("sub")
+            email = payload.get("email")
+            
+            if not user_id:
+                logger.error("JWT token missing user_id (sub)")
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Invalid token: missing user_id"
+                })
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                return
+            
+            logger.info(f"JWT verified for user {user_id}")
         
-        # Create handler
+        except AuthenticationException as e:
+            logger.warning(f"Authentication failed: {str(e)}")
+            await websocket.send_json({
+                "type": "error",
+                "message": "Authentication failed"
+            })
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+        
+        except Exception as e:
+            logger.error(f"Token verification error: {str(e)}")
+            await websocket.send_json({
+                "type": "error",
+                "message": "Invalid token"
+            })
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+        
+        # ========================================================================
+        # STEP 3: GET DATABASE POOL
+        # ========================================================================
+        
+        try:
+            db_pool = get_db_pool()
+            if not db_pool:
+                logger.error("Database pool not available")
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Database connection error"
+                })
+                await websocket.close(code=status.WS_1011_SERVER_ERROR)
+                return
+        except Exception as e:
+            logger.error(f"Error getting database pool: {str(e)}")
+            await websocket.send_json({
+                "type": "error",
+                "message": "Database error"
+            })
+            await websocket.close(code=status.WS_1011_SERVER_ERROR)
+            return
+        
+        # ========================================================================
+        # STEP 4: SEND CONNECTION CONFIRMATION
+        # ========================================================================
+        
+        await websocket.send_json({
+            "type": "connected",
+            "chat_id": chat_id,
+            "user_id": user_id,
+            "message": "Connected to chat successfully"
+        })
+        logger.info(f"Connection confirmed for user {user_id}, chat {chat_id}")
+        
+        # ========================================================================
+        # STEP 5: INITIALIZE HANDLER
+        # ========================================================================
+        
         handler = ChatWebSocketHandler(
             websocket=websocket,
-            user_id=current_user["user_id"],
+            user_id=user_id,
+            email=email,
+            chat_id=chat_id,
             db_pool=db_pool
         )
         
-        # Connect and listen
-        await handler.connect()
-        await handler.listen()
+        # ========================================================================
+        # STEP 6: CONNECT AND LISTEN
+        # ========================================================================
         
-    except UnauthorizedException:
-        # Already handled in get_current_user_ws
-        pass
-    
-    except WebSocketDisconnect:
-        logger.info("WebSocket disconnected")
+        try:
+            await handler.connect()
+            await handler.listen()
+        
+        except WebSocketDisconnect:
+            logger.info(f"WebSocket disconnected for user {user_id}, chat {chat_id}")
+            await handler.disconnect()
+        
+        except Exception as e:
+            logger.error(f"Error in WebSocket handler: {str(e)}", exc_info=True)
+            await handler.disconnect()
     
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
+        logger.error(f"Unexpected error in websocket_chat: {str(e)}", exc_info=True)
         try:
-            await websocket.close(code=1011, reason="Internal server error")
-        except:
+            await websocket.send_json({
+                "type": "error",
+                "message": "Internal server error"
+            })
+            await websocket.close(code=status.WS_1011_SERVER_ERROR)
+        except Exception:
             pass

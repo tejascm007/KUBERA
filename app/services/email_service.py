@@ -489,3 +489,148 @@ class EmailService:
             html_body=html_body,
             email_type="security_alert"
         )
+
+
+# ==========================================
+# FORGOT PASSWORD EMAIL TEMPLATES
+# ==========================================
+
+async def send_forgot_password_email(
+    self,
+    email: str,
+    full_name: str,
+    otp: str
+) -> bool:
+    """Send forgot password OTP email"""
+    
+    subject = "Reset Your KUBERA Password"
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: 'Lato', Arial, sans-serif; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background-color: #1A1A1A; color: white; padding: 20px; text-align: center; }}
+            .content {{ padding: 20px; background-color: #FAFBFC; }}
+            .otp-box {{ 
+                background-color: #ece3fa; 
+                padding: 20px; 
+                text-align: center; 
+                font-size: 24px; 
+                font-weight: bold; 
+                letter-spacing: 2px;
+                margin: 20px 0;
+                border-radius: 8px;
+            }}
+            .warning {{ color: #d32f2f; font-size: 14px; margin-top: 10px; }}
+            .footer {{ text-align: center; font-size: 12px; color: #666; margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>KUBERA</h1>
+                <p>Password Reset Request</p>
+            </div>
+            
+            <div class="content">
+                <p>Hi {full_name},</p>
+                
+                <p>We received a request to reset your KUBERA password. Use the OTP below to complete the process.</p>
+                
+                <div class="otp-box">{otp}</div>
+                
+                <p><strong>This OTP is valid for 10 minutes.</strong></p>
+                
+                <p>Steps to reset your password:</p>
+                <ol>
+                    <li>Enter your email address</li>
+                    <li>Enter the OTP above</li>
+                    <li>Create a new password</li>
+                    <li>Click confirm</li>
+                </ol>
+                
+                <div class="warning">
+                    ⚠️ <strong>Security Note:</strong> If you didn't request this password reset, please ignore this email. Your account remains secure.
+                </div>
+                
+                <p>Questions? Contact our support team.</p>
+                
+                <div class="footer">
+                    <p>© 2025 KUBERA Investment Chatbot. All rights reserved.</p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return await self.send_email(
+        recipient_email=email,
+        subject=subject,
+        html_content=html_content,
+        email_type="forgot_password"
+    )
+
+
+async def send_password_reset_confirmation(
+    self,
+    email: str,
+    full_name: str
+) -> bool:
+    """Send password reset confirmation email"""
+    
+    subject = "Your Password Has Been Reset"
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: 'Lato', Arial, sans-serif; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background-color: #1A1A1A; color: white; padding: 20px; text-align: center; }}
+            .content {{ padding: 20px; background-color: #FAFBFC; }}
+            .success {{ color: #2e7d32; font-size: 16px; margin: 20px 0; }}
+            .footer {{ text-align: center; font-size: 12px; color: #666; margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>KUBERA</h1>
+                <p>Password Reset Successful</p>
+            </div>
+            
+            <div class="content">
+                <p>Hi {full_name},</p>
+                
+                <p class="success">✓ Your password has been successfully reset!</p>
+                
+                <p>You can now login with your new password. Your session was logged out for security.</p>
+                
+                <p>If this wasn't you, please:</p>
+                <ol>
+                    <li>Reset your password immediately</li>
+                    <li>Contact our support team</li>
+                </ol>
+                
+                <p><strong>Login here:</strong> https://kubera.app/login</p>
+                
+                <div class="footer">
+                    <p>© 2025 KUBERA Investment Chatbot. All rights reserved.</p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return await self.send_email(
+        recipient_email=email,
+        subject=subject,
+        html_content=html_content,
+        email_type="password_reset_confirmation"
+    )

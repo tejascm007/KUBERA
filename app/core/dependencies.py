@@ -7,7 +7,7 @@ from fastapi import Depends, HTTPException, status, WebSocket
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 import logging
-
+from app.utils.validators import PasswordValidator
 from app.core.security import verify_token
 from app.core.database import get_db_pool
 from app.db.repositories.user_repository import UserRepository
@@ -326,3 +326,12 @@ async def verify_user_owns_portfolio(
         raise ForbiddenException("You don't have permission to access this portfolio")
     
     return portfolio
+
+
+# Password validator instance
+password_validator = PasswordValidator()
+
+async def get_password_validator() -> PasswordValidator:
+    """Get password validator instance"""
+    return password_validator
+

@@ -70,3 +70,6 @@ requests
 pandas
 numpy
 python-dateutil
+
+#cloud
+supabase

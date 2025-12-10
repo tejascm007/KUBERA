@@ -16,9 +16,13 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     APP_ENV: str = "development"
     DEBUG: bool = True
-    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8000"
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8080"
     
     # ==================== DATABASE (SUPABASE) ====================
+
+    SUPABASE_URL : str
+    SUPABASE_ANON_KEY : str
+
     POSTGRES_HOST: str
     POSTGRES_PORT: int = 6543  # Supabase Transaction Pooler port
     POSTGRES_USER: str
@@ -26,6 +30,7 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = "postgres"
     POSTGRES_MIN_POOL_SIZE: int = 2
     POSTGRES_MAX_POOL_SIZE: int = 10
+
     
     # ==================== JWT ====================
     SECRET_KEY: str
@@ -54,7 +59,7 @@ class Settings(BaseSettings):
     # - mixtral-8x7b-32768 (good balance)
     # - gemma2-9b-it (efficient)
     GROQ_MODEL: str = Field(
-        default="llama-3.1-70b-versatile",
+        default="llama-3.3-70b-versatile",
         env="GROQ_MODEL"
     )
     

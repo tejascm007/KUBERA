@@ -156,3 +156,104 @@ class OTPRepository:
         
         async with self.db.acquire() as conn:
             await conn.execute(query, email.lower())
+
+
+# ==========================================
+# FORGOT PASSWORD REPOSITORY FUNCTIONS
+# ==========================================
+
+async def create_forgot_password_otp(
+    self,
+    email: str,
+    otp_hash: str
+) -> dict:
+    """Create or update OTP for forgot password"""
+    
+    query = """
+    INSERT INTO otps (email, otp_hash, otp_type, is_verified, attempt_count, created_at, verified_at)
+    VALUES (:email, :otp_hash, :otp_type, FALSE, 0, NOW(), NULL)
+    ON CONFLICT (email) DO UPDATE SET
+        otp_hash = :otp_hash,
+        otp_type = :otp_type,
+        is_verified = FALSE,
+        attempt_count = 0,
+        created_at = NOW(),
+        verified_at = NULL
+    WHERE otps.otp_type = :otp_type
+    RETURNING otp_id, email, created_at;
+    """
+    
+    result = await self.db.fetch_one(
+        query,
+        {
+            "email": email.lower(),
+            "otp_hash": otp_hash,
+            "otp_type": "forgot_password"
+        }
+    )
+    
+    return result
+
+
+async def verify_forgot_password_otp(
+    self,
+    email: str,
+    otp_hash: str
+) -> dict:
+    """Verify OTP for forgot password"""
+    
+    query = """
+    SELECT otp_id, email, is_verified, attempt_count, created_at
+    FROM otps
+    WHERE email = :email
+    AND otp_type = 'forgot_password'
+    AND otp_hash = :otp_hash
+    ORDER BY created_at DESC
+    LIMIT 1;
+    """
+    
+    result = await self.db.fetch_one(
+        query,
+        {
+            "email": email.lower(),
+            "otp_hash": otp_hash
+        }
+    )
+    
+    return result
+
+
+async def mark_forgot_password_otp_verified(self, email: str) -> bool:
+    """Mark forgot password OTP as verified"""
+    
+    query = """
+    UPDATE otps
+    SET is_verified = TRUE, verified_at = NOW()
+    WHERE email = :email
+    AND otp_type = 'forgot_password'
+    AND is_verified = FALSE;
+    """
+    
+    result = await self.db.execute(
+        query,
+        {"email": email.lower()}
+    )
+    
+    return result > 0
+
+
+async def delete_forgot_password_otp(self, email: str) -> bool:
+    """Delete forgot password OTP after successful reset"""
+    
+    query = """
+    DELETE FROM otps
+    WHERE email = :email
+    AND otp_type = 'forgot_password';
+    """
+    
+    result = await self.db.execute(
+        query,
+        {"email": email.lower()}
+    )
+    
+    return result > 0

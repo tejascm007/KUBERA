@@ -232,3 +232,69 @@ def validate_exchange(exchange: str) -> tuple[bool, Optional[str]]:
         return False, f"Exchange must be one of: {', '.join(valid_exchanges)}"
     
     return True, None
+
+
+"""
+Password Validator Utility
+Validates passwords against security requirements
+"""
+
+from typing import Tuple
+
+
+class PasswordValidator:
+    """Validate password against security requirements"""
+    
+    MIN_LENGTH = 8
+    REQUIRE_UPPERCASE = True
+    REQUIRE_LOWERCASE = True
+    REQUIRE_DIGIT = True
+    REQUIRE_SPECIAL = True
+    
+    SPECIAL_CHARS = "!@#$%^&*()_+-=[]{}|;:,.<>?"
+    
+    def is_valid(self, password: str) -> bool:
+        """Check if password meets all requirements"""
+        return all([
+            self._check_length(password),
+            self._check_uppercase(password),
+            self._check_lowercase(password),
+            self._check_digit(password),
+            self._check_special(password)
+        ])
+    
+    def validate_detailed(self, password: str) -> Tuple[bool, list]:
+        """Return detailed validation results"""
+        issues = []
+        
+        if not self._check_length(password):
+            issues.append(f"Password must be at least {self.MIN_LENGTH} characters")
+        
+        if not self._check_uppercase(password):
+            issues.append("Password must contain at least one uppercase letter (A-Z)")
+        
+        if not self._check_lowercase(password):
+            issues.append("Password must contain at least one lowercase letter (a-z)")
+        
+        if not self._check_digit(password):
+            issues.append("Password must contain at least one digit (0-9)")
+        
+        if not self._check_special(password):
+            issues.append(f"Password must contain a special character: {self.SPECIAL_CHARS}")
+        
+        return len(issues) == 0, issues
+    
+    def _check_length(self, password: str) -> bool:
+        return len(password) >= self.MIN_LENGTH
+    
+    def _check_uppercase(self, password: str) -> bool:
+        return any(c.isupper() for c in password)
+    
+    def _check_lowercase(self, password: str) -> bool:
+        return any(c.islower() for c in password)
+    
+    def _check_digit(self, password: str) -> bool:
+        return any(c.isdigit() for c in password)
+    
+    def _check_special(self, password: str) -> bool:
+        return any(c in self.SPECIAL_CHARS for c in password)

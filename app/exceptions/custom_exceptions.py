@@ -460,6 +460,39 @@ class WebSocketException(KuberaException):
         )
 
 
+
+
+# ==========================================
+# FORGOT PASSWORD EXCEPTIONS
+# ==========================================
+
+class InvalidOTP(HTTPException):
+    """Raised when OTP is invalid or expired"""
+    def __init__(self, detail: str = "Invalid or expired OTP"):
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail
+        )
+
+
+class RateLimitExceeded(HTTPException):
+    """Raised when user exceeds rate limit"""
+    def __init__(self, detail: str = "Too many requests. Please try again later"):
+        super().__init__(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=detail
+        )
+
+
+class InvalidPassword(HTTPException):
+    """Raised when password doesn't meet requirements"""
+    def __init__(self, detail: str = "Password doesn't meet security requirements"):
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail
+        )
+
+
 # ============================================================================
 # ALIASES FOR BACKWARD COMPATIBILITY
 # ============================================================================

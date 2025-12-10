@@ -7,7 +7,7 @@ import json
 import logging
 from typing import Dict, Any, List, AsyncGenerator
 from datetime import datetime
-
+from asyncpg import Record
 from groq import AsyncGroq
 from groq.types.chat import ChatCompletionMessageToolCall
 
@@ -17,6 +17,18 @@ from app.mcp.tool_handler import mcp_tool_handler
 from app.exceptions.custom_exceptions import MCPException
 
 logger = logging.getLogger(__name__)
+
+
+
+def _to_serializable(obj):
+    # asyncpg Record → dict
+    if isinstance(obj, Record):
+        return dict(obj)
+    if isinstance(obj, dict):
+        return {k: _to_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_to_serializable(v) for v in obj]
+    return obj
 
 
 class LLMMCPOrchestrator:
@@ -91,7 +103,7 @@ Be concise, accurate, and helpful."""
         self,
         user_message: str,
         conversation_history: List[Dict[str, str]] = None,
-        max_iterations: int = 10
+        max_iterations: int = 2
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Process user message with streaming responses
@@ -141,6 +153,9 @@ Be concise, accurate, and helpful."""
             iteration += 1
             
             try:
+
+                messages = _to_serializable(messages)   
+                tools = _to_serializable(tools)
                 # Call Groq with streaming
                 stream = await self.groq_client.chat.completions.create(
                     model=settings.GROQ_MODEL,

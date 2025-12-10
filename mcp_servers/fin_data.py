@@ -10,7 +10,11 @@ import requests
 from datetime import datetime, timedelta
 import json
 from typing import Optional, List, Dict, Any
+import sys
 import os
+import pandas as pd
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from app.core.utils import fetch_ticker_safe, fetch_history_safe, fetch_info_safe, fetch_financials_safe
 
 
@@ -74,8 +78,8 @@ def fetch_company_fundamentals(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-        info = await fetch_info_safe(stock, timeout=10)
+        stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        info = fetch_info_safe(stock, timeout=10)
         
         if not info or 'symbol' not in info:
             return handle_error(
@@ -174,10 +178,10 @@ def fetch_historical_financials(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)
+        stock = fetch_ticker_safe(ticker, timeout=10)
         
         # Get financial statements
-        financials = await fetch_financials_safe(stock)
+        financials = fetch_financials_safe(stock)
         
         if financials.empty:
             return handle_error(
@@ -251,7 +255,7 @@ def fetch_balance_sheet_data(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)
+        stock = fetch_ticker_safe(ticker, timeout=10)
         
         balance_sheet = stock.balance_sheet
         
@@ -326,7 +330,7 @@ def fetch_cash_flow_data(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)
+        stock = fetch_ticker_safe(ticker, timeout=10)
         
         cashflow = stock.cashflow
         
@@ -399,10 +403,10 @@ def fetch_dividend_history(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)
+        stock = fetch_ticker_safe(ticker, timeout=10)
         
         dividends = stock.dividends
-        info = await fetch_info_safe(stock)
+        info = fetch_info_safe(stock)
 
         
         if dividends.empty:
@@ -462,8 +466,8 @@ def fetch_eps_analysis(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-        info = await fetch_info_safe(stock, timeout=10)
+        stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        info = fetch_info_safe(stock, timeout=10)
         
         # Get historical EPS from financials
         earnings = stock.earnings
@@ -528,8 +532,8 @@ def validate_stock_symbol(
     """
     try:
         ticker = get_stock_ticker(stock_symbol, exchange)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-        info = await fetch_info_safe(stock, timeout=10)
+        stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        info = fetch_info_safe(stock, timeout=10)
         
         if not info or 'symbol' not in info:
             return {

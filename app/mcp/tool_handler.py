@@ -272,17 +272,39 @@ class MCPToolHandler:
         openai_tools = []
         
         for tool in self.client.get_all_tools():
-            # Convert Langchain tool to OpenAI format
+            # Get the args schema
+            args_schema = {}
+            
+            if hasattr(tool, 'args_schema'):
+                schema = tool.args_schema
+                
+                #  FIX: args_schema can be either a Pydantic model or a dict
+                if hasattr(schema, 'schema'):
+                    # It's a Pydantic model
+                    args_schema = schema.schema()
+                elif isinstance(schema, dict):
+                    # It's already a dict
+                    args_schema = schema
+                else:
+                    # Try to convert to dict
+                    try:
+                        args_schema = schema.model_json_schema() if hasattr(schema, 'model_json_schema') else {}
+                    except:
+                        args_schema = {}
+            
+            # Convert to OpenAI format
             openai_tools.append({
                 "type": "function",
                 "function": {
                     "name": tool.name,
-                    "description": tool.description,
-                    "parameters": tool.args_schema.schema() if hasattr(tool, 'args_schema') else {}
+                    "description": tool.description or "No description available",
+                    "parameters": args_schema
                 }
             })
         
         return openai_tools
+
+
 
 
 

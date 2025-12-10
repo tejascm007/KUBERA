@@ -3,7 +3,7 @@ Authentication Response Schemas
 Pydantic models for auth endpoint responses
 """
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime
 
@@ -168,3 +168,39 @@ class LogoutResponse(BaseModel):
     
     success: bool = True
     message: str = "Logged out successfully"
+
+
+# ==========================================
+# FORGOT PASSWORD SCHEMAS
+# ==========================================
+
+class ForgotPasswordResponse(BaseModel):
+    """Response for forgot password initiation"""
+    success: bool
+    message: str
+    email: str
+    otp_expires_in: int = Field(default=10, description="OTP expiration in minutes")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "message": "Password reset OTP sent to your email",
+                "email": "user@example.com",
+                "otp_expires_in": 10
+            }
+        }
+
+
+class ForgotPasswordConfirmResponse(BaseModel):
+    """Response for forgot password confirmation"""
+    success: bool
+    message: str
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "message": "Password reset successful. You can now login with your new password."
+            }
+        }

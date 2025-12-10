@@ -2,6 +2,7 @@
 Main FastAPI Application
 Entry point for KUBERA Stock Analysis Chatbot
 """
+import uvicorn
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,6 +46,8 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+from app.api.routes.websocket_routes import router as ws_router
 
 
 # ============================================================================
@@ -174,6 +177,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Include WebSocket router
+app.include_router(ws_router)
 
 # ============================================================================
 # MIDDLEWARE
@@ -181,7 +186,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -305,7 +310,6 @@ async def scheduler_status():
 # ============================================================================
 
 if __name__ == "__main__":
-    import uvicorn
 
     uvicorn.run(
         "app.main:app",

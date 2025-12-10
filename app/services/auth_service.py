@@ -286,12 +286,12 @@ class AuthService:
     # LOGIN
     # ========================================================================
     
-    async def login(self, email: str, password: str) -> Dict[str, Any]:
+    async def login(self, username: str, password: str) -> Dict[str, Any]:
         """
         Login user with email and password
         
         Args:
-            email: User email
+            username: User username
             password: User password
         
         Returns:
@@ -303,10 +303,10 @@ class AuthService:
             AccountSuspendedException: Account suspended
         """
         # Get user
-        user = await self.user_repo.get_user_by_email(email)
+        user = await self.user_repo.get_user_by_username(username)
         
         if not user:
-            raise InvalidCredentialsException("Invalid email or password")
+            raise InvalidCredentialsException("Invalid username or password")
         
         # Verify password
         if not verify_password(password, user['password_hash']):
@@ -338,7 +338,7 @@ class AuthService:
             expires_at=expires_at
         )
         
-        logger.info(f"User logged in: {user['email']}")
+        logger.info(f"User logged in: {user['username']}")
         
         # Remove sensitive data
         user.pop('password_hash', None)
@@ -585,3 +585,172 @@ class AuthService:
             "success": True,
             "message": "Password has been reset successfully"
         }
+
+# ==========================================
+# FORGOT PASSWORD SERVICE METHODS
+# ==========================================
+
+async def send_forgot_password_otp(self, email: str) -> dict:
+    """
+    Send forgot password OTP to user's email
+    
+    Args:
+        email: User's email address
+    
+    Returns:
+        dict with success, message, email, otp_expires_in
+    
+    Raises:
+        UserNotFound: If user doesn't exist
+        RateLimitExceeded: If too many OTP requests
+    """
+    
+    # 1. Check if user exists
+    user = await self.auth_repo.get_user_by_email(email)
+    if not user:
+        raise UserNotFound(f"No account found with email: {email}")
+    
+    # 2. Check rate limit for OTP requests (max 3 per hour)
+    otp_count_query = """
+    SELECT COUNT(*) as count
+    FROM otps
+    WHERE email = :email
+    AND otp_type = 'forgot_password'
+    AND created_at > NOW() - INTERVAL '1 hour';
+    """
+    
+    result = await self.auth_repo.db.fetch_one(
+        otp_count_query,
+        {"email": email.lower()}
+    )
+    
+    if result and result.get("count", 0) >= 3:
+        raise RateLimitExceeded("Too many OTP requests. Try again in 1 hour")
+    
+    # 3. Generate OTP (6 digits)
+    otp_code = self.otp_generator.generate_otp(length=6)
+    otp_hash = self.otp_generator.hash_otp(otp_code)
+    
+    # 4. Save OTP to database
+    await self.auth_repo.create_forgot_password_otp(email, otp_hash)
+    
+    # 5. Send OTP via email
+    await self.email_service.send_forgot_password_email(
+        email=email,
+        full_name=user.get("full_name", "User"),
+        otp=otp_code
+    )
+    
+    # 6. Log action
+    logger.info(f"Forgot password OTP sent to {email}")
+    
+    return {
+        "success": True,
+        "message": "Password reset OTP sent to your email",
+        "email": email,
+        "otp_expires_in": 10
+    }
+
+
+async def reset_password_with_otp(
+    self,
+    email: str,
+    otp_code: str,
+    new_password: str
+) -> dict:
+    """
+    Reset password using OTP verification
+    
+    Args:
+        email: User's email
+        otp_code: 6-digit OTP from email
+        new_password: New password
+    
+    Returns:
+        dict with success and message
+    
+    Raises:
+        UserNotFound: If user doesn't exist
+        InvalidOTP: If OTP is wrong or expired
+        InvalidPassword: If password doesn't meet requirements
+    """
+    
+    # 1. Validate password
+    if not self.password_validator.is_valid(new_password):
+        raise InvalidPassword(
+            "Password must be 8+ characters with uppercase, lowercase, number, and special character"
+        )
+    
+    # 2. Check if user exists
+    user = await self.auth_repo.get_user_by_email(email)
+    if not user:
+        raise UserNotFound(f"No account found with email: {email}")
+    
+    # 3. Hash OTP code and verify
+    otp_hash = self.otp_generator.hash_otp(otp_code)
+    
+    otp_record = await self.auth_repo.verify_forgot_password_otp(email, otp_hash)
+    
+    if not otp_record:
+        # Increment attempt counter
+        increment_query = """
+        UPDATE otps
+        SET attempt_count = attempt_count + 1
+        WHERE email = :email
+        AND otp_type = 'forgot_password';
+        """
+        
+        await self.auth_repo.db.execute(
+            increment_query,
+            {"email": email.lower()}
+        )
+        
+        raise InvalidOTP("Invalid OTP code")
+    
+    # 4. Check if OTP is expired (10 minutes)
+    created_at = otp_record.get("created_at")
+    if created_at:
+        time_diff = (datetime.utcnow() - created_at).total_seconds() / 60
+        if time_diff > 10:
+            raise InvalidOTP("OTP has expired. Please request a new one")
+    
+    # 5. Mark OTP as verified
+    await self.auth_repo.mark_forgot_password_otp_verified(email)
+    
+    # 6. Hash new password
+    password_hash = self.password_hasher.hash(new_password)
+    
+    # 7. Update user password
+    update_query = """
+    UPDATE users
+    SET password_hash = :password_hash, updated_at = NOW()
+    WHERE email = :email;
+    """
+    
+    await self.auth_repo.db.execute(
+        update_query,
+        {
+            "password_hash": password_hash,
+            "email": email.lower()
+        }
+    )
+    
+    # 8. Revoke all existing refresh tokens (force re-login)
+    await self.auth_repo.revoke_all_user_tokens(user.get("user_id"))
+    
+    # 9. Delete OTP record
+    await self.auth_repo.delete_forgot_password_otp(email)
+    
+    # 10. Log action
+    logger.info(f"Password reset successful for {email}")
+    
+    # 11. Send confirmation email
+    await self.email_service.send_password_reset_confirmation(
+        email=email,
+        full_name=user.get("full_name", "User")
+    )
+    
+    return {
+        "success": True,
+        "message": "Password reset successful. You can now login with your new password."
+    }

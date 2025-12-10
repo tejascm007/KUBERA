@@ -9,8 +9,10 @@ import yfinance as yf
 import requests
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
+import sys
 import os
 import pandas as pd
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.core.utils import fetch_ticker_safe, fetch_history_safe, fetch_info_safe, fetch_financials_safe
 
 # Initialize FastMCP
@@ -53,8 +55,8 @@ def fetch_promoter_holding_data(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-        info = await fetch_info_safe(stock, timeout=10)
+        stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        info = fetch_info_safe(stock, timeout=10)
         
         # Get major holders data
         major_holders = stock.major_holders
@@ -120,8 +122,8 @@ def fetch_board_composition(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-        info = await fetch_info_safe(stock, timeout=10)
+        stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        info = fetch_info_safe(stock, timeout=10)
         
         # Get company officers (board members)
         officers = info.get("companyOfficers", [])
@@ -189,8 +191,8 @@ def fetch_audit_quality(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-        info = await fetch_info_safe(stock, timeout=10)
+        stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        info = fetch_info_safe(stock, timeout=10)
         
         result = {
             "stock_symbol": stock_symbol,
@@ -241,8 +243,8 @@ def fetch_regulatory_compliance(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-        info = await fetch_info_safe(stock, timeout=10)
+        stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        info = fetch_info_safe(stock, timeout=10)
 
         
         result = {
@@ -303,8 +305,8 @@ def fetch_shareholding_pattern(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-        info = await fetch_info_safe(stock, timeout=10)
+        stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        info = fetch_info_safe(stock, timeout=10)
         major_holders = stock.major_holders
         
         result = {
@@ -359,8 +361,8 @@ def fetch_related_party_transactions(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        sstock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-        info = await fetch_info_safe(stock, timeout=10)
+        sstock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        info = fetch_info_safe(stock, timeout=10)
         
         result = {
             "stock_symbol": stock_symbol,
@@ -400,8 +402,8 @@ def fetch_governance_score(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-        info = await fetch_info_safe(stock, timeout=10)
+        stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        info = fetch_info_safe(stock, timeout=10)
         
         # Calculate component scores
         audit_risk = info.get("auditRisk", 5)

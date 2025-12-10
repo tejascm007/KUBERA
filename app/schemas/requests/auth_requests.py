@@ -94,14 +94,13 @@ class CompleteRegistrationRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     """Request schema for user login"""
-    
-    email: EmailStr = Field(..., description="User email address")
+    username: str = Field(..., min_length=5, description="User's username")
     password: str = Field(..., description="Password")
     
     class Config:
         json_schema_extra = {
             "example": {
-                "email": "user@example.com",
+                "username": "john_doe",
                 "password": "SecurePass123!"
             }
         }
@@ -171,5 +170,41 @@ class PasswordResetConfirmRequest(BaseModel):
                 "email": "user@example.com",
                 "otp": "123456",
                 "new_password": "NewSecurePass123!"
+            }
+        }
+
+
+# ==========================================
+# FORGOT PASSWORD SCHEMAS
+# ==========================================
+
+class ForgotPasswordRequest(BaseModel):
+    """Request schema for initiating forgot password flow"""
+    email: str = Field(..., description="User's registered email")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "email": "user@example.com"
+            }
+        }
+
+
+class ForgotPasswordVerifyRequest(BaseModel):
+    """Request schema for verifying OTP and resetting password"""
+    email: str = Field(..., description="User's email")
+    otp: str = Field(..., min_length=6, max_length=6, description="6-digit OTP")
+    new_password: str = Field(
+        ..., 
+        min_length=8, 
+        description="New password (min 8 chars, must contain uppercase, lowercase, number, special char)"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "email": "user@example.com",
+                "otp": "123456",
+                "new_password": "NewSecurePass@123"
             }
         }

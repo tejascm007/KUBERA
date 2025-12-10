@@ -25,6 +25,16 @@ from app.schemas.responses.auth_responses import (
     CheckUsernameResponse,
     LogoutResponse
 )
+from app.schemas.requests.auth_requests import (
+    ForgotPasswordRequest,
+    ForgotPasswordVerifyRequest
+)
+from app.schemas.responses.auth_responses import (
+    ForgotPasswordResponse,
+    ForgotPasswordConfirmResponse
+)
+from app.exceptions.custom_exceptions import InvalidOTP, RateLimitExceeded, InvalidPassword
+
 from app.services.auth_service import AuthService
 from app.core.dependencies import get_current_user
 from app.core.database import get_db_pool
@@ -117,7 +127,7 @@ async def register_step_3(request: CompleteRegistrationRequest):
     "/login",
     response_model=LoginResponse,
     status_code=status.HTTP_200_OK,
-    summary="Login with email and password",
+    summary="Login with username and password",
     description="Authenticate user and receive access tokens"
 )
 async def login(request: LoginRequest):
@@ -132,7 +142,7 @@ async def login(request: LoginRequest):
     auth_service = AuthService(db_pool)
     
     result = await auth_service.login(
-        email=request.email,
+        username=request.username,
         password=request.password
     )
     
@@ -266,3 +276,113 @@ async def password_reset_confirm(request: PasswordResetConfirmRequest):
         new_password=request.new_password
     )
     return result
+
+
+
+# ==========================================
+# FORGOT PASSWORD ENDPOINTS
+# ==========================================
+
+@router.post(
+    "/forgot-password/send-otp",
+    response_model=ForgotPasswordResponse,
+    summary="Send forgot password OTP",
+    tags=["Auth - forgot Password Reset"]
+)
+async def send_forgot_password_otp(
+    request: ForgotPasswordRequest
+):
+    """
+    Send OTP to user's email for password reset
+    
+    Endpoint: POST /auth/password-reset/send-otp
+    
+    Request body:
+    {
+        "email": "user@example.com"
+    }
+    
+    Response:
+    {
+        "success": true,
+        "message": "Password reset OTP sent to your email",
+        "email": "user@example.com",
+        "otp_expires_in": 10
+    }
+    """
+    db_pool = await get_db_pool()
+    auth_service = AuthService(db_pool)
+    
+    try:
+        result = await auth_service.send_forgot_password_otp(request.email)
+        logger.info(f"Forgot password OTP sent to {request.email}")
+        return result
+        
+    except UserNotFound as e:
+        logger.warning(f"Forgot password request for non-existent user: {request.email}")
+        raise e
+    except RateLimitExceeded as e:
+        logger.warning(f"Rate limit exceeded for {request.email}")
+        raise e
+    except Exception as e:
+        logger.error(f"Error sending forgot password OTP: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send reset OTP. Please try again."
+        )
+
+
+@router.post(
+    "/forgot-password/confirm",
+    response_model=ForgotPasswordConfirmResponse,
+    summary="Reset password with OTP",
+    tags=["Auth - forgot Password Reset"]
+)
+async def reset_password_with_otp(
+    request: ForgotPasswordVerifyRequest
+):
+    """
+    Reset password using OTP verification
+    
+    Endpoint: POST /auth/password-reset/confirm
+    
+    Request body:
+    {
+        "email": "user@example.com",
+        "otp": "123456",
+        "new_password": "NewSecurePass@123"
+    }
+    
+    Response:
+    {
+        "success": true,
+        "message": "Password reset successful. You can now login with your new password."
+    }
+    """
+    db_pool = await get_db_pool()
+    auth_service = AuthService(db_pool)
+    
+    try:
+        result = await auth_service.reset_password_with_otp(
+            email=request.email,
+            otp_code=request.otp,
+            new_password=request.new_password
+        )
+        logger.info(f"Password reset successful for {request.email}")
+        return result
+        
+    except UserNotFound as e:
+        logger.warning(f"Password reset for non-existent user: {request.email}")
+        raise e
+    except InvalidOTP as e:
+        logger.warning(f"Invalid OTP for {request.email}")
+        raise e
+    except InvalidPassword as e:
+        logger.warning(f"Invalid password for {request.email}")
+        raise e
+    except Exception as e:
+        logger.error(f"Error resetting password: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to reset password. Please try again."
+        )

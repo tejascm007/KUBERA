@@ -6,17 +6,63 @@ Data Sources: Yahoo Finance data + Plotly/Matplotlib for charting
 
 from fastmcp import FastMCP
 import yfinance as yf
-import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 import json
 import base64
 from io import BytesIO
+import sys
 import os
+import pandas as pd
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.core.utils import fetch_ticker_safe, fetch_history_safe, fetch_info_safe, fetch_financials_safe
+import uuid
+from supabase import create_client, Client
 
+from dotenv import load_dotenv
+load_dotenv() 
+# Initialize Supabase client
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+def upload_chart_to_supabase(html_content: str, stock_symbol: str, chart_type: str) -> str:
+    """
+    Upload chart HTML to Supabase Storage and return public URL
+    
+    Args:
+        html_content: Chart HTML string
+        stock_symbol: Stock symbol
+        chart_type: Type of chart (e.g., "price_volume")
+    
+    Returns:
+        Public URL of uploaded chart
+    """
+    try:
+        # Generate unique filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        chart_id = str(uuid.uuid4())[:8]
+        filename = f"{stock_symbol}_{chart_type}_{timestamp}_{chart_id}.html"
+        
+        # Upload to Supabase Storage
+        response = supabase.storage.from_("charts").upload(
+            path=filename,
+            file=html_content.encode('utf-8'),
+            file_options={
+                "content-type": "text/html",
+                "cache-control": "3600"
+            }
+        )
+        
+        # Get public URL
+        public_url = supabase.storage.from_("charts").get_public_url(filename)
+        
+        return public_url
+    
+    except Exception as e:
+        print(f"Error uploading chart: {e}")
+        return None
 # Try to import plotting libraries
 try:
     import plotly.graph_objects as go
@@ -79,12 +125,12 @@ def generate_price_volume_chart(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10) 
+        stock = fetch_ticker_safe(ticker, timeout=10) 
         # Map period
         period_map = {"1m": "1mo", "3m": "3mo", "6m": "6mo", "1y": "1y", "3y": "3y"}
         yf_period = period_map.get(period, "6mo")
         
-        hist = await fetch_history_safe(stock, period=yf_period)
+        hist = fetch_history_safe(stock, period=yf_period)
         
         if hist.empty:
             return handle_error(
@@ -166,8 +212,17 @@ def generate_price_volume_chart(
             
             # Convert to HTML
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            result["chart_html"] = chart_html
-            result["chart_available"] = True
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+
+            if chart_url:
+                result["chart_url"] = chart_url
+                result["chart_available"] = True
+                # Optional: Keep chart_html for backward compatibility or remove it
+                # result["chart_html"] = chart_html  # Remove to reduce payload
+            else:
+                result["chart_url"] = None
+                result["chart_available"] = False
+                result["error"] = "Failed to upload chart to storage"
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -203,7 +258,7 @@ def generate_candlestick_chart(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
         
         # Map period and interval
         period_map = {"1m": "1mo", "3m": "3mo", "6m": "6mo", "1y": "1y"}
@@ -212,7 +267,7 @@ def generate_candlestick_chart(
         yf_period = period_map.get(period, "3mo")
         yf_interval = interval_map.get(interval, "1d")
         
-        hist = await fetch_history_safe(stock, period=yf_period, interval=yf_interval)
+        hist = fetch_history_safe(stock, period=yf_period, interval=yf_interval)
         
         if hist.empty:
             return handle_error(
@@ -280,8 +335,17 @@ def generate_candlestick_chart(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            result["chart_html"] = chart_html
-            result["chart_available"] = True
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+
+            if chart_url:
+                result["chart_url"] = chart_url
+                result["chart_available"] = True
+                # Optional: Keep chart_html for backward compatibility or remove it
+                # result["chart_html"] = chart_html  # Remove to reduce payload
+            else:
+                result["chart_url"] = None
+                result["chart_available"] = False
+                result["error"] = "Failed to upload chart to storage"
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -316,12 +380,12 @@ def generate_technical_indicators_chart(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
         
         period_map = {"3m": "3mo", "6m": "6mo", "1y": "1y"}
         yf_period = period_map.get(period, "6mo")
         
-        hist = await fetch_history_safe(stock, period=yf_period)
+        hist = fetch_history_safe(stock, period=yf_period)
         
         if hist.empty:
             return handle_error(
@@ -439,8 +503,17 @@ def generate_technical_indicators_chart(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            result["chart_html"] = chart_html
-            result["chart_available"] = True
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+
+            if chart_url:
+                result["chart_url"] = chart_url
+                result["chart_available"] = True
+                # Optional: Keep chart_html for backward compatibility or remove it
+                # result["chart_html"] = chart_html  # Remove to reduce payload
+            else:
+                result["chart_url"] = None
+                result["chart_available"] = False
+                result["error"] = "Failed to upload chart to storage"
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -476,8 +549,8 @@ def generate_fundamental_comparison_chart(
         
         for symbol in stock_symbols[:5]:  # Limit to 5 stocks
             ticker = get_stock_ticker(symbol)
-            stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-            info = await fetch_info_safe(stock, timeout=10)
+            stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+            info = fetch_info_safe(stock, timeout=10)
             
             stock_data = {}
             
@@ -527,8 +600,17 @@ def generate_fundamental_comparison_chart(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            result["chart_html"] = chart_html
-            result["chart_available"] = True
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+
+            if chart_url:
+                result["chart_url"] = chart_url
+                result["chart_available"] = True
+                # Optional: Keep chart_html for backward compatibility or remove it
+                # result["chart_html"] = chart_html  # Remove to reduce payload
+            else:
+                result["chart_url"] = None
+                result["chart_available"] = False
+                result["error"] = "Failed to upload chart to storage"
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -563,7 +645,7 @@ def generate_financial_trend_chart(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
         
         result = {
             "stock_symbol": stock_symbol,
@@ -574,7 +656,7 @@ def generate_financial_trend_chart(
         }
         
         if metric == "Revenue":
-            financials = await fetch_financials_safe(stock)
+            financials = fetch_financials_safe(stock)
             if not financials.empty:
                 revenue_data = []
                 for col in financials.columns[:years]:
@@ -587,7 +669,7 @@ def generate_financial_trend_chart(
                 result["trend_data"] = revenue_data
         
         elif metric == "Profit":
-            financials = await fetch_financials_safe(stock)
+            financials = fetch_financials_safe(stock)
             if not financials.empty:
                 profit_data = []
                 for col in financials.columns[:years]:
@@ -634,8 +716,17 @@ def generate_financial_trend_chart(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            result["chart_html"] = chart_html
-            result["chart_available"] = True
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+
+            if chart_url:
+                result["chart_url"] = chart_url
+                result["chart_available"] = True
+                # Optional: Keep chart_html for backward compatibility or remove it
+                # result["chart_html"] = chart_html  # Remove to reduce payload
+            else:
+                result["chart_url"] = None
+                result["chart_available"] = False
+                result["error"] = "Failed to upload chart to storage"
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -670,13 +761,13 @@ def generate_performance_vs_benchmark_chart(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
         benchmark_ticker = yf.Ticker(benchmark)
         
         period_map = {"6m": "6mo", "1y": "1y", "3y": "3y", "5y": "5y"}
         yf_period = period_map.get(period, "1y")
         
-        stock_hist = await fetch_history_safe(stock, period=yf_period)
+        stock_hist = fetch_history_safe(stock, period=yf_period)
         benchmark_hist = benchmark_ticker.history(period=yf_period)
         
         if stock_hist.empty or benchmark_hist.empty:
@@ -735,8 +826,17 @@ def generate_performance_vs_benchmark_chart(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            result["chart_html"] = chart_html
-            result["chart_available"] = True
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+
+            if chart_url:
+                result["chart_url"] = chart_url
+                result["chart_available"] = True
+                # Optional: Keep chart_html for backward compatibility or remove it
+                # result["chart_html"] = chart_html  # Remove to reduce payload
+            else:
+                result["chart_url"] = None
+                result["chart_available"] = False
+                result["error"] = "Failed to upload chart to storage"
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -770,8 +870,8 @@ def generate_valuation_heatmap(
         
         for symbol in stock_symbols[:20]:  # Limit to 20 stocks
             ticker = get_stock_ticker(symbol)
-            stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-            info = await fetch_info_safe(stock, timeout=10)
+            stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+            info = fetch_info_safe(stock, timeout=10)
             
             valuation_data.append({
                 "Stock": symbol,
@@ -809,8 +909,17 @@ def generate_valuation_heatmap(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            result["chart_html"] = chart_html
-            result["chart_available"] = True
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+
+            if chart_url:
+                result["chart_url"] = chart_url
+                result["chart_available"] = True
+                # Optional: Keep chart_html for backward compatibility or remove it
+                # result["chart_html"] = chart_html  # Remove to reduce payload
+            else:
+                result["chart_url"] = None
+                result["chart_available"] = False
+                result["error"] = "Failed to upload chart to storage"
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -890,8 +999,17 @@ def generate_portfolio_composition_chart(
                 )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            result["chart_html"] = chart_html
-            result["chart_available"] = True
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+
+            if chart_url:
+                result["chart_url"] = chart_url
+                result["chart_available"] = True
+                # Optional: Keep chart_html for backward compatibility or remove it
+                # result["chart_html"] = chart_html  # Remove to reduce payload
+            else:
+                result["chart_url"] = None
+                result["chart_available"] = False
+                result["error"] = "Failed to upload chart to storage"
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -923,7 +1041,7 @@ def generate_dividend_timeline_chart(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
         
         dividends = stock.dividends
         
@@ -967,8 +1085,17 @@ def generate_dividend_timeline_chart(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            result["chart_html"] = chart_html
-            result["chart_available"] = True
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+
+            if chart_url:
+                result["chart_url"] = chart_url
+                result["chart_available"] = True
+                # Optional: Keep chart_html for backward compatibility or remove it
+                # result["chart_html"] = chart_html  # Remove to reduce payload
+            else:
+                result["chart_url"] = None
+                result["chart_available"] = False
+                result["error"] = "Failed to upload chart to storage"
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -1008,9 +1135,9 @@ def generate_risk_return_scatter(
         for symbol in stock_symbols[:20]:  # Limit to 20 stocks
             try:
                 ticker = get_stock_ticker(symbol)
-                stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-                info = await fetch_info_safe(stock, timeout=10)
-                hist = await fetch_history_safe(stock, period=yf_period)
+                stock = fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+                info = fetch_info_safe(stock, timeout=10)
+                hist = fetch_history_safe(stock, period=yf_period)
                 
                 if not hist.empty:
                     returns = hist['Close'].pct_change().dropna()
@@ -1063,8 +1190,17 @@ def generate_risk_return_scatter(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            result["chart_html"] = chart_html
-            result["chart_available"] = True
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+
+            if chart_url:
+                result["chart_url"] = chart_url
+                result["chart_available"] = True
+                # Optional: Keep chart_html for backward compatibility or remove it
+                # result["chart_html"] = chart_html  # Remove to reduce payload
+            else:
+                result["chart_url"] = None
+                result["chart_available"] = False
+                result["error"] = "Failed to upload chart to storage"
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -1097,7 +1233,7 @@ def validate_chart_data(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)        
+        stock = fetch_ticker_safe(ticker, timeout=10)        
         result = {
             "stock_symbol": stock_symbol,
             "data_type": data_type,
@@ -1107,7 +1243,7 @@ def validate_chart_data(
         }
         
         if data_type == "price":
-            hist = await fetch_history_safe(stock, period="1y")
+            hist = fetch_history_safe(stock, period="1y")
             if not hist.empty:
                 result["available_periods"] = ["1m", "3m", "6m", "1y", "3y", "5y"]
                 result["data_points"] = len(hist)
@@ -1117,7 +1253,7 @@ def validate_chart_data(
                 result["data_quality"] = "unavailable"
         
         elif data_type == "fundamentals":
-            info = await fetch_info_safe(stock)
+            info = fetch_info_safe(stock)
             if info and 'symbol' in info:
                 result["available_data"] = list(info.keys())[:20]
             else:

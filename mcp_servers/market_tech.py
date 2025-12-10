@@ -11,7 +11,9 @@ import numpy as np
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 import requests
+import sys
 import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.core.utils import fetch_ticker_safe, fetch_history_safe, fetch_info_safe, fetch_financials_safe
 
 try:
@@ -66,9 +68,9 @@ def fetch_current_price_data(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-        info = await fetch_info_safe(stock, timeout=10)
-        hist = await fetch_history_safe(stock, period="5d")
+        stock =  fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        info =  fetch_info_safe(stock, timeout=10)
+        hist =  fetch_history_safe(stock, period="5d")
         
         if hist.empty or not info:
             return handle_error(
@@ -149,7 +151,7 @@ def fetch_historical_price_data(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)
+        stock =  fetch_ticker_safe(ticker, timeout=10)
         
         # Map interval
         interval_map = {
@@ -159,7 +161,7 @@ def fetch_historical_price_data(
         }
         yf_interval = interval_map.get(interval, "1d")
         
-        hist = await fetch_history_safe(stock, start=start_date, end=end_date, interval=yf_interval)
+        hist =  fetch_history_safe(stock, start=start_date, end=end_date, interval=yf_interval)
         
         if hist.empty:
             return handle_error(
@@ -216,13 +218,13 @@ def fetch_technical_indicators(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)
+        stock =  fetch_ticker_safe(ticker, timeout=10)
         
         # Map period to days
         period_map = {"3m": 90, "6m": 180, "1y": 365, "3y": 1095}
         days = period_map.get(period, 180)
         
-        hist = await fetch_history_safe(stock, period=f"{days}d")
+        hist =  fetch_history_safe(stock, period=f"{days}d")
         
         if hist.empty:
             return handle_error(
@@ -340,8 +342,8 @@ def fetch_volume_analysis(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)
-        hist = await fetch_history_safe(stock, period=f"{days}d")
+        stock =  fetch_ticker_safe(ticker, timeout=10)
+        hist =  fetch_history_safe(stock, period=f"{days}d")
         
         if hist.empty:
             return handle_error(
@@ -400,11 +402,11 @@ def fetch_volatility_metrics(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-        info = await fetch_info_safe(stock, timeout=10)
+        stock =  fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        info =  fetch_info_safe(stock, timeout=10)
         
         period_days = 365 if period == "1y" else 90
-        hist = await fetch_history_safe(stock, period=f"{period_days}d")
+        hist =  fetch_history_safe(stock, period=f"{period_days}d")
         
         if hist.empty:
             return handle_error(
@@ -477,12 +479,12 @@ def fetch_comparative_performance(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)
+        stock =  fetch_ticker_safe(ticker, timeout=10)
         
         period_map = {"1m": 30, "3m": 90, "6m": 180, "1y": 365}
         days = period_map.get(period, 365)
         
-        stock_hist = await fetch_history_safe(stock, period=f"{days}d")
+        stock_hist =  fetch_history_safe(stock, period=f"{days}d")
         
         if stock_hist.empty:
             return handle_error(
@@ -545,8 +547,8 @@ def fetch_institutional_holding_data(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-        info = await fetch_info_safe(stock, timeout=10)
+        stock =  fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        info =  fetch_info_safe(stock, timeout=10)
         
         # Yahoo Finance provides institutional holders
         institutional = stock.institutional_holders
@@ -594,9 +596,9 @@ def fetch_liquidity_metrics(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)  # ← NEW
-        info = await fetch_info_safe(stock, timeout=10)
-        hist = await fetch_history_safe(stock, period="30d")
+        stock =  fetch_ticker_safe(ticker, timeout=10)  # ← NEW
+        info =  fetch_info_safe(stock, timeout=10)
+        hist =  fetch_history_safe(stock, period="30d")
         
         if hist.empty:
             return handle_error(
@@ -650,8 +652,8 @@ def validate_technical_data(
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
-        stock = await fetch_ticker_safe(ticker, timeout=10)
-        hist = await fetch_history_safe(stock, period=date_range)
+        stock =  fetch_ticker_safe(ticker, timeout=10)
+        hist =  fetch_history_safe(stock, period=date_range)
         
         if hist.empty:
             return {
