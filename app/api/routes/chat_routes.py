@@ -18,7 +18,7 @@ from app.schemas.responses.chat_responses import (
     ChatMessagesResponse
 )
 from app.services.chat_service import ChatService
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, verify_user_owns_chat
 from app.core.database import get_db_pool
 
 router = APIRouter(prefix="/chats", tags=["Chat"])
@@ -46,7 +46,7 @@ async def get_chats(
     - Returns list of chats sorted by last activity
     - Paginated results
     """
-    db_pool = await get_db_pool()
+    db_pool = get_db_pool()
     chat_service = ChatService(db_pool)
     
     result = await chat_service.get_user_chats(
@@ -74,7 +74,7 @@ async def create_chat(
     - Creates empty chat
     - Use WebSocket to send messages
     """
-    db_pool = await get_db_pool()
+    db_pool = get_db_pool()
     chat_service = ChatService(db_pool)
     
     chat = await chat_service.create_chat(
@@ -108,7 +108,11 @@ async def get_chat_messages(
     - Returns chat info and message history
     - Messages ordered chronologically
     """
-    db_pool = await get_db_pool()
+    db_pool = get_db_pool()
+    
+    # Verify user owns this chat
+    await verify_user_owns_chat(chat_id, current_user, db_pool)
+    
     chat_service = ChatService(db_pool)
     
     result = await chat_service.get_chat_with_messages(chat_id, limit, offset)
@@ -132,7 +136,11 @@ async def rename_chat(
     
     - Updates chat name
     """
-    db_pool = await get_db_pool()
+    db_pool = get_db_pool()
+    
+    # Verify user owns this chat
+    await verify_user_owns_chat(chat_id, current_user, db_pool)
+    
     chat_service = ChatService(db_pool)
     
     chat = await chat_service.rename_chat(chat_id, request.new_name)
@@ -161,7 +169,11 @@ async def delete_chat(
     - Deletes chat and all messages
     - Cannot be undone
     """
-    db_pool = await get_db_pool()
+    db_pool = get_db_pool()
+    
+    # Verify user owns this chat
+    await verify_user_owns_chat(chat_id, current_user, db_pool)
+    
     chat_service = ChatService(db_pool)
     
     deleted = await chat_service.delete_chat(chat_id)

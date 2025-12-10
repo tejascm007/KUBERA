@@ -77,8 +77,18 @@ async def websocket_chat(websocket: WebSocket, chat_id: str):
             # Extract JWT token from query params
             token = await get_token_from_query(websocket)
             
-            # Verify token
-            payload = verify_token(token)
+            # Verify token with explicit token_type
+            payload = verify_token(token, token_type="access")
+            
+            if not payload:
+                logger.error("JWT token verification failed")
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Invalid or expired token"
+                })
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                return
+            
             user_id = payload.get("sub")
             email = payload.get("email")
             
@@ -135,7 +145,45 @@ async def websocket_chat(websocket: WebSocket, chat_id: str):
             return
         
         # ========================================================================
-        # STEP 4: SEND CONNECTION CONFIRMATION
+        # STEP 4: VERIFY USER OWNS THE CHAT
+        # ========================================================================
+        
+        try:
+            from app.db.repositories.chat_repository import ChatRepository
+            chat_repo = ChatRepository(db_pool)
+            chat = await chat_repo.get_chat_by_id(chat_id)
+            
+            if not chat:
+                logger.warning(f"Chat {chat_id} not found")
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Chat not found"
+                })
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                return
+            
+            if str(chat["user_id"]) != str(user_id):
+                logger.warning(f"User {user_id} attempted to access chat {chat_id} owned by {chat['user_id']}")
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "You don't have permission to access this chat"
+                })
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                return
+            
+            logger.info(f"Chat ownership verified for user {user_id}, chat {chat_id}")
+            
+        except Exception as e:
+            logger.error(f"Error verifying chat ownership: {str(e)}")
+            await websocket.send_json({
+                "type": "error",
+                "message": "Failed to verify chat access"
+            })
+            await websocket.close(code=status.WS_1011_SERVER_ERROR)
+            return
+        
+        # ========================================================================
+        # STEP 5: SEND CONNECTION CONFIRMATION
         # ========================================================================
         
         await websocket.send_json({
@@ -147,7 +195,7 @@ async def websocket_chat(websocket: WebSocket, chat_id: str):
         logger.info(f"Connection confirmed for user {user_id}, chat {chat_id}")
         
         # ========================================================================
-        # STEP 5: INITIALIZE HANDLER
+        # STEP 6: INITIALIZE HANDLER
         # ========================================================================
         
         handler = ChatWebSocketHandler(
@@ -159,7 +207,7 @@ async def websocket_chat(websocket: WebSocket, chat_id: str):
         )
         
         # ========================================================================
-        # STEP 6: CONNECT AND LISTEN
+        # STEP 7: CONNECT AND LISTEN
         # ========================================================================
         
         try:

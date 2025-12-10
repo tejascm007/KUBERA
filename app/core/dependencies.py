@@ -35,7 +35,7 @@ async def get_db():
         async def endpoint(db = Depends(get_db)):
             ...
     """
-    return await get_db_pool()
+    return get_db_pool()
 
 
 # ============================================================================
@@ -194,7 +194,7 @@ async def get_current_admin(
 async def get_user_from_websocket(
     websocket: WebSocket,
     token: str,
-    db = Depends(get_db)
+    db
 ):
     """
     Authenticate user from WebSocket connection
@@ -264,8 +264,8 @@ async def verify_user_owns_resource(
 
 async def verify_user_owns_chat(
     chat_id: str,
-    current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    current_user: dict,
+    db
 ):
     """
     Verify that current user owns the chat
@@ -297,8 +297,8 @@ async def verify_user_owns_chat(
 
 async def verify_user_owns_portfolio(
     portfolio_id: str,
-    current_user: dict = Depends(get_current_user),
-    db = Depends(get_db)
+    current_user: dict,
+    db
 ):
     """
     Verify that current user owns the portfolio entry
@@ -334,4 +334,3 @@ password_validator = PasswordValidator()
 async def get_password_validator() -> PasswordValidator:
     """Get password validator instance"""
     return password_validator
-

@@ -17,7 +17,7 @@ from app.schemas.responses.portfolio_responses import (
     DeletePortfolioResponse
 )
 from app.services.portfolio_service import PortfolioService
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, verify_user_owns_portfolio
 from app.core.database import get_db_pool
 
 router = APIRouter(prefix="/portfolio", tags=["Portfolio"])
@@ -111,6 +111,10 @@ async def update_portfolio_entry(
     - Cannot change stock symbol
     """
     db_pool = await get_db_pool()
+    
+    # Verify user owns this portfolio entry
+    await verify_user_owns_portfolio(portfolio_id, current_user, db_pool)
+    
     portfolio_service = PortfolioService(db_pool)
     
     updates = request.dict(exclude_unset=True)
@@ -145,6 +149,10 @@ async def delete_portfolio_entry(
     - Cannot be undone
     """
     db_pool = await get_db_pool()
+    
+    # Verify user owns this portfolio entry
+    await verify_user_owns_portfolio(portfolio_id, current_user, db_pool)
+    
     portfolio_service = PortfolioService(db_pool)
     
     deleted = await portfolio_service.delete_portfolio_entry(portfolio_id)
