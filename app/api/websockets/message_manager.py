@@ -30,7 +30,7 @@ class MessageManager:
     
     async def save_assistant_response(self, message_id: str, response: str,
                                      tokens_used: int, processing_time_ms: int,
-                                     tools_used: list):
+                                     tools_used: list, chart_url: str = None):
         """Save assistant response to database"""
         query = """
             UPDATE messages
@@ -39,8 +39,9 @@ class MessageManager:
                 tokens_used = $2,
                 processing_time_ms = $3,
                 mcp_tools_used = $4,
+                chart_url = $5,
                 response_completed_at = NOW()
-            WHERE message_id = $5
+            WHERE message_id = $6
         """
         await self.db_pool.execute(
             query,
@@ -48,6 +49,7 @@ class MessageManager:
             tokens_used,
             processing_time_ms,
             tools_used,
+            chart_url,
             message_id
         )
         logger.info(f"Saved assistant response for message {message_id}")

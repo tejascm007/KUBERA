@@ -39,12 +39,11 @@ class ConnectionManager:
         Args:
             websocket: WebSocket instance
             user_id: User UUID
-            metadata: Optional connection metadata (IP, user agent, etc.)
+            metadata: Optional connection metadata (IP, user agent, chat_id, etc.)
+        
+        Note: websocket.accept() should be called BEFORE this method
         """
         async with self._lock:
-            # Accept connection
-            await websocket.accept()
-            
             # Add to user's connections list
             if user_id not in self.active_connections:
                 self.active_connections[user_id] = []
@@ -54,12 +53,13 @@ class ConnectionManager:
             # Store metadata
             self.connection_metadata[websocket] = {
                 "user_id": user_id,
+                "chat_id": metadata.get("chat_id") if metadata else None,
                 "connected_at": datetime.now(),
                 "ip_address": metadata.get("ip_address") if metadata else None,
                 "user_agent": metadata.get("user_agent") if metadata else None
             }
             
-            logger.info(f"WebSocket connected: user={user_id}, total_connections={len(self.active_connections[user_id])}")
+            logger.info(f"WebSocket registered: user={user_id}, total_connections={len(self.active_connections[user_id])}")
     
     async def disconnect(self, websocket: WebSocket, user_id: str):
         """

@@ -9,6 +9,7 @@ from app.api.websockets.chat_websocket import ChatWebSocketHandler
 from app.core.security import verify_token
 from app.exceptions.custom_exceptions import AuthenticationException
 from app.core.database import get_db_pool
+from app.websocket.connection_manager import connection_manager
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +195,12 @@ async def websocket_chat(websocket: WebSocket, chat_id: str):
         })
         logger.info(f"Connection confirmed for user {user_id}, chat {chat_id}")
         
+        # Register connection with connection manager
+        await connection_manager.connect(websocket, user_id, {
+            "chat_id": chat_id,
+            "email": email
+        })
+        
         # ========================================================================
         # STEP 6: INITIALIZE HANDLER
         # ========================================================================
@@ -216,10 +223,12 @@ async def websocket_chat(websocket: WebSocket, chat_id: str):
         
         except WebSocketDisconnect:
             logger.info(f"WebSocket disconnected for user {user_id}, chat {chat_id}")
+            await connection_manager.disconnect(websocket, user_id)
             await handler.disconnect()
         
         except Exception as e:
             logger.error(f"Error in WebSocket handler: {str(e)}", exc_info=True)
+            await connection_manager.disconnect(websocket, user_id)
             await handler.disconnect()
     
     except Exception as e:

@@ -11,6 +11,7 @@ from app.db.repositories.user_repository import UserRepository
 from app.db.repositories.email_repository import EmailRepository
 from app.services.portfolio_service import PortfolioService
 from app.services.email_service import EmailService
+from app.background.tasks.notification_tasks import notify_portfolio_update
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,12 @@ async def send_portfolio_reports(db_pool: asyncpg.Pool):
                 if success:
                     sent_count += 1
                     logger.info(f" Report sent to {user['email']}")
+                    
+                    # Send real-time notification to user if connected
+                    await notify_portfolio_update(
+                        user_id,
+                        "Your portfolio report has been sent to your email!"
+                    )
                 else:
                     failed_count += 1
                     logger.warning(f" Failed to send report to {user['email']}")
@@ -135,6 +142,12 @@ async def send_single_user_report(db_pool: asyncpg.Pool, user_id: str):
         
         if success:
             logger.info(f" Report sent to {user['email']}")
+            
+            # Send real-time notification to user if connected
+            await notify_portfolio_update(
+                user_id,
+                "Your portfolio report has been sent to your email!"
+            )
         else:
             logger.warning(f" Failed to send report to {user['email']}")
         

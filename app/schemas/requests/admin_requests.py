@@ -97,7 +97,7 @@ class UpdatePortfolioReportSettingsRequest(BaseModel):
     
     frequency: str = Field(..., description="disabled, daily, weekly, or monthly")
     send_time: str = Field(..., description="Time in HH:MM:SS format (IST)")
-    send_day_weekly: Optional[str] = Field(None, description="monday, tuesday, etc.")
+    send_day_weekly: Optional[int] = Field(None, ge=0, le=6, description="Day of week (0=Monday, 6=Sunday)")
     send_day_monthly: Optional[int] = Field(None, ge=1, le=28, description="Day of month (1-28)")
     
     @validator('frequency')
@@ -106,13 +106,17 @@ class UpdatePortfolioReportSettingsRequest(BaseModel):
             raise ValueError('Frequency must be disabled, daily, weekly, or monthly')
         return v
     
-    @validator('send_day_weekly')
+    @validator('send_day_weekly', pre=True)
     def validate_day_weekly(cls, v, values):
-        if values.get('frequency') == 'weekly' and not v:
+        if values.get('frequency') == 'weekly' and v is None:
             raise ValueError('send_day_weekly is required for weekly frequency')
-        if v and v.lower() not in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']:
-            raise ValueError('Invalid day of week')
-        return v.lower() if v else None
+        # Convert string to int if needed (frontend may send as string)
+        if v is not None and isinstance(v, str):
+            try:
+                v = int(v)
+            except ValueError:
+                raise ValueError('send_day_weekly must be an integer 0-6')
+        return v
     
     @validator('send_day_monthly')
     def validate_day_monthly(cls, v, values):
@@ -125,7 +129,7 @@ class UpdatePortfolioReportSettingsRequest(BaseModel):
             "example": {
                 "frequency": "weekly",
                 "send_time": "09:00:00",
-                "send_day_weekly": "monday"
+                "send_day_weekly": 0
             }
         }
 

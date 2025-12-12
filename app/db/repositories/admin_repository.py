@@ -127,18 +127,19 @@ class AdminRepository:
         action: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Get activity logs with filters"""
+        import json
         
         conditions = []
         params = []
         param_count = 1
         
         if admin_id:
-            conditions.append(f"admin_id = ${param_count}")
+            conditions.append(f"l.admin_id = ${param_count}")
             params.append(admin_id)
             param_count += 1
         
         if action:
-            conditions.append(f"action = ${param_count}")
+            conditions.append(f"l.action = ${param_count}")
             params.append(action)
             param_count += 1
         
@@ -148,9 +149,11 @@ class AdminRepository:
         params.append(offset)
         
         query = f"""
-            SELECT l.*, a.email as admin_email, a.full_name as admin_name
+            SELECT l.*, 
+                   COALESCE(a.email, 'unknown') as admin_email, 
+                   COALESCE(a.full_name, 'Unknown Admin') as admin_name
             FROM admin_activity_logs l
-            JOIN admins a ON l.admin_id = a.admin_id
+            LEFT JOIN admins a ON l.admin_id = a.admin_id
             {where_clause}
             ORDER BY l.performed_at DESC
             LIMIT ${param_count} OFFSET ${param_count + 1}
@@ -158,7 +161,36 @@ class AdminRepository:
         
         async with self.db.acquire() as conn:
             rows = await conn.fetch(query, *params)
-            return [dict(row) for row in rows]
+            
+            # Convert results to proper format
+            results = []
+            for row in rows:
+                log_dict = dict(row)
+                
+                # Convert UUID fields to strings
+                if log_dict.get('log_id'):
+                    log_dict['log_id'] = str(log_dict['log_id'])
+                if log_dict.get('admin_id'):
+                    log_dict['admin_id'] = str(log_dict['admin_id'])
+                if log_dict.get('target_id'):
+                    log_dict['target_id'] = str(log_dict['target_id'])
+                
+                # Parse JSON strings to dicts
+                if log_dict.get('old_value') and isinstance(log_dict['old_value'], str):
+                    try:
+                        log_dict['old_value'] = json.loads(log_dict['old_value'])
+                    except (json.JSONDecodeError, TypeError):
+                        log_dict['old_value'] = None
+                
+                if log_dict.get('new_value') and isinstance(log_dict['new_value'], str):
+                    try:
+                        log_dict['new_value'] = json.loads(log_dict['new_value'])
+                    except (json.JSONDecodeError, TypeError):
+                        log_dict['new_value'] = None
+                
+                results.append(log_dict)
+            
+            return results
     
     async def count_activity_logs(
         self,
@@ -175,3 +207,44 @@ class AdminRepository:
         
         async with self.db.acquire() as conn:
             return await conn.fetchval(query, *params)
+    
+    async def log_admin_action(
+        self,
+        admin_id: str,
+        action: str,
+        target_type: Optional[str] = None,
+        target_id: Optional[str] = None,
+        old_value: Optional[Dict[str, Any]] = None,
+        new_value: Optional[Dict[str, Any]] = None,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Log an admin action"""
+        import json
+        
+        # Convert dicts to JSON strings for storage
+        old_value_json = json.dumps(old_value) if old_value else None
+        new_value_json = json.dumps(new_value) if new_value else None
+        
+        query = """
+            INSERT INTO admin_activity_logs (
+                admin_id, action, target_type, target_id,
+                old_value, new_value, ip_address, user_agent
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING *
+        """
+        
+        async with self.db.acquire() as conn:
+            row = await conn.fetchrow(
+                query,
+                admin_id,
+                action,
+                target_type,
+                target_id,
+                old_value_json,
+                new_value_json,
+                ip_address,
+                user_agent
+            )
+            return dict(row) if row else None

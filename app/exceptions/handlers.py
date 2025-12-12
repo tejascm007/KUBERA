@@ -7,6 +7,8 @@ from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 import logging
+import traceback
+from datetime import datetime
 
 from app.exceptions.custom_exceptions import KuberaException
 
@@ -69,13 +71,21 @@ async def generic_exception_handler(request: Request, exc: Exception):
     """
     logger.exception(f"Unhandled exception: {str(exc)}")
     
+    # Write to file for debugging
+    try:
+        with open("error_log.txt", "a") as f:
+            f.write(f"\n[{datetime.now()}] Unhandled exception: {str(exc)}\n{traceback.format_exc()}\n")
+    except Exception as e:
+        print(f"Failed to write error log: {e}")
+    
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "success": False,
             "error": {
                 "message": "Internal server error",
-                "type": "InternalServerError"
+                "type": "InternalServerError",
+                "debug": str(exc)  # Actual error for debugging
             }
         }
     )

@@ -152,12 +152,19 @@ class LLMService:
                 elif chunk["type"] == "complete":
                     # Response completed with metadata
                     logger.info(f" Response complete. Tokens: {chunk.get('tokens_used')}, Tools: {chunk.get('tools_used')}")
+                    
+                    # Include chart_url if visualization tool was used
+                    chart_url = chunk.get("chart_url")
+                    if chart_url:
+                        logger.info(f" Chart URL available: {chart_url[:50]}...")
+                    
                     yield {
                         "type": "message_complete",
                         "metadata": {
                             "tokens_used": chunk.get("tokens_used", 0),
                             "tools_used": chunk.get("tools_used", []),
-                            "iterations": chunk.get("iterations", 1)
+                            "iterations": chunk.get("iterations", 1),
+                            "chart_url": chart_url
                         }
                     }
                 

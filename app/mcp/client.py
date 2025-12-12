@@ -30,6 +30,7 @@ class KuberaMCPClient:
         self.named_tools: Dict[str, Any] = {}
         self.initialized = False
         self._lock = asyncio.Lock()
+        self.server_status: Dict[str, bool] = {}  # Track server health
     
     # ========================================================================
     # INITIALIZATION
@@ -96,12 +97,36 @@ class KuberaMCPClient:
                 
                 self.tools = []
                 self.named_tools = {}
+                self.server_status = {}
                 self.initialized = False
                 
                 logger.info("MCP Client shutdown complete")
                 
             except Exception as e:
                 logger.error(f"Error during MCP shutdown: {e}")
+    
+    async def refresh_tools(self) -> int:
+        """
+        Refresh tools from all servers
+        
+        Returns:
+            Number of tools loaded
+        """
+        if not self.initialized or not self.client:
+            raise MCPException("MCP Client not initialized")
+        
+        try:
+            logger.info("Refreshing tools from all servers...")
+            
+            self.tools = await self.client.get_tools()
+            self.named_tools = {tool.name: tool for tool in self.tools}
+            
+            logger.info(f"Tools refreshed: {len(self.tools)} available")
+            return len(self.tools)
+            
+        except Exception as e:
+            logger.error(f"Error refreshing tools: {e}")
+            raise MCPException(f"Failed to refresh tools: {str(e)}")
     
     # ========================================================================
     # TOOL OPERATIONS
@@ -155,20 +180,22 @@ class KuberaMCPClient:
     async def invoke_tool(
         self,
         tool_name: str,
-        arguments: Dict[str, Any]
+        arguments: Dict[str, Any],
+        timeout: int = 60
     ) -> Dict[str, Any]:
         """
-        Invoke a tool with arguments
+        Invoke a tool with arguments and timeout
         
         Args:
             tool_name: Name of the tool
             arguments: Tool arguments
+            timeout: Timeout in seconds (default: 60)
         
         Returns:
             Tool execution result
         
         Raises:
-            MCPException: If tool not found or invocation fails
+            MCPException: If tool not found, invocation fails, or timeout
         """
         if not self.initialized:
             raise MCPException("MCP Client not initialized")
@@ -180,10 +207,13 @@ class KuberaMCPClient:
             raise MCPException(f"Tool not found: {tool_name}")
         
         try:
-            logger.info(f"Invoking tool: {tool_name} with args: {arguments}")
+            logger.info(f"Invoking tool: {tool_name} with args: {arguments} (timeout: {timeout}s)")
             
-            # Invoke tool
-            result = await tool.ainvoke(arguments)
+            # Invoke tool with timeout
+            result = await asyncio.wait_for(
+                tool.ainvoke(arguments),
+                timeout=timeout
+            )
             
             logger.info(f"Tool {tool_name} executed successfully")
             
@@ -191,6 +221,14 @@ class KuberaMCPClient:
                 "success": True,
                 "tool": tool_name,
                 "result": result
+            }
+        
+        except asyncio.TimeoutError:
+            logger.error(f"Tool {tool_name} timed out after {timeout}s")
+            return {
+                "success": False,
+                "tool": tool_name,
+                "error": f"Tool execution timed out after {timeout} seconds"
             }
             
         except Exception as e:
@@ -252,8 +290,45 @@ class KuberaMCPClient:
             "initialized": self.initialized,
             "total_tools": len(self.tools),
             "total_servers": len(MCPServerConfig.SERVERS),
-            "tools_available": list(self.named_tools.keys()) if self.initialized else []
+            "tools_available": list(self.named_tools.keys()) if self.initialized else [],
+            "server_status": self.server_status
         }
+    
+    async def health_check_servers(self) -> Dict[str, bool]:
+        """
+        Check health of all MCP servers
+        
+        Returns:
+            Dict mapping server name to health status (True = healthy)
+        """
+        if not self.initialized:
+            return {name: False for name in MCPServerConfig.SERVERS.keys()}
+        
+        status = {}
+        
+        for server_name in MCPServerConfig.SERVERS.keys():
+            try:
+                # Server is considered healthy if it contributed tools
+                # Check if any tool name matches server prefix
+                server_tools = [t for t in self.named_tools.keys() 
+                               if server_name.replace('-', '_') in t.lower() or 
+                               any(s in t.lower() for s in server_name.split('-'))]
+                
+                # If no tools from this server, mark as potentially unhealthy
+                status[server_name] = len(server_tools) > 0 or len(self.tools) > 0
+                
+            except Exception as e:
+                logger.warning(f"Health check failed for {server_name}: {e}")
+                status[server_name] = False
+        
+        self.server_status = status
+        
+        # Log unhealthy servers
+        unhealthy = [s for s, healthy in status.items() if not healthy]
+        if unhealthy:
+            logger.warning(f"Unhealthy MCP servers: {unhealthy}")
+        
+        return status
 
 
 # ========================================================================

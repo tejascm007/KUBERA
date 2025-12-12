@@ -27,7 +27,8 @@ class MCPToolHandler:
         self,
         tool_name: str,
         arguments: Dict[str, Any],
-        tool_call_id: Optional[str] = None
+        tool_call_id: Optional[str] = None,
+        timeout: int = 60
     ) -> Dict[str, Any]:
         """
         Execute a single tool
@@ -36,13 +37,24 @@ class MCPToolHandler:
             tool_name: Name of the tool
             arguments: Tool arguments
             tool_call_id: Tool call ID (for tracking)
+            timeout: Timeout in seconds (default: 60)
         
         Returns:
             Formatted result with metadata
         """
         try:
-            # Invoke tool via MCP client
-            result = await self.client.invoke_tool(tool_name, arguments)
+            # Invoke tool via MCP client with timeout
+            result = await self.client.invoke_tool(tool_name, arguments, timeout=timeout)
+            
+            # Handle timeout result (success=False with error)
+            if not result.get("success", True):
+                return {
+                    "tool_call_id": tool_call_id,
+                    "tool_name": tool_name,
+                    "success": False,
+                    "result": None,
+                    "error": result.get("error", "Unknown error")
+                }
             
             return {
                 "tool_call_id": tool_call_id,

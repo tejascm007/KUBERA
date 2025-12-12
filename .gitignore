@@ -48,6 +48,7 @@ env/
 
 # Logs
 *.log
+error_log.txt
 logs/
 log/
 
@@ -120,4 +121,7 @@ coverage.xml
 
 # Documentation builds
 docs/_build/
-site/
+site/ 
+
+test_mcp_quick.py
+test_mcp_servers.py

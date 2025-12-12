@@ -8,6 +8,19 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 
+class PromptActivityDataPoint(BaseModel):
+    """Single data point for prompt activity chart"""
+    label: str
+    value: int
+
+
+class PromptActivityResponse(BaseModel):
+    """Response schema for prompt activity time-series"""
+    success: bool = True
+    period: str
+    data: List[PromptActivityDataPoint]
+
+
 class AdminTokenResponse(BaseModel):
     """Response schema for admin login"""
     

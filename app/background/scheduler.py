@@ -189,8 +189,9 @@ class BackgroundScheduler:
             logger.info("Portfolio reports disabled")
             return
         
-        # Parse time
-        hour, minute = map(int, send_time.split(":"))
+        # Parse time (handles both HH:MM and HH:MM:SS formats)
+        time_parts = send_time.split(":")
+        hour, minute = int(time_parts[0]), int(time_parts[1])
         
         # Import job function
         from app.background.jobs.portfolio_report_job import send_portfolio_reports
@@ -201,7 +202,12 @@ class BackgroundScheduler:
             trigger = CronTrigger(hour=hour, minute=minute)
             
         elif frequency == "weekly":
-            trigger = CronTrigger(day_of_week=day_weekly or 0, hour=hour, minute=minute)
+            # Frontend uses: 0=Sunday, 1=Monday, ..., 6=Saturday
+            # APScheduler uses: 0=Monday, 1=Tuesday, ..., 6=Sunday
+            # Convert: frontend_day -> aps_day: 0->6, 1->0, 2->1, 3->2, 4->3, 5->4, 6->5
+            frontend_day = day_weekly if day_weekly is not None else 1  # default Monday
+            aps_day = (frontend_day - 1) % 7  # converts 0->6, 1->0, 2->1, etc.
+            trigger = CronTrigger(day_of_week=aps_day, hour=hour, minute=minute)
             
         elif frequency == "monthly":
             trigger = CronTrigger(day=day_monthly or 1, hour=hour, minute=minute)
@@ -210,7 +216,7 @@ class BackgroundScheduler:
             logger.error(f"Invalid frequency: {frequency}")
             return
         
-        self.scheduler.add_job(
+        job = self.scheduler.add_job(
             func=send_portfolio_reports,
             trigger=trigger,
             id=job_id,
@@ -220,7 +226,11 @@ class BackgroundScheduler:
             max_instances=1
         )
         
-        logger.info(f" Portfolio report schedule updated: {frequency} at {send_time}")
+        # Get the next run time
+        next_run = job.next_run_time
+        logger.info(f" Portfolio report schedule updated: {frequency} at {send_time}, next run: {next_run}")
+        
+        return next_run
     
     # ========================================================================
     # UTILITIES

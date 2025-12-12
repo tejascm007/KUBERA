@@ -136,6 +136,7 @@ class AdminService:
         """Get admin dashboard statistics"""
         
         from app.db.repositories.chat_repository import ChatRepository
+        from datetime import timedelta
         chat_repo = ChatRepository(self.db)
         
         # User stats
@@ -144,11 +145,20 @@ class AdminService:
         deactivated_users = await self.user_repo.count_users("deactivated")
         
         # Chat stats
+        total_chats = await chat_repo.get_total_chats_count()
         total_messages = await chat_repo.get_total_messages_count()
         
-        # Rate limit violations
-        from datetime import timedelta
+        # Prompt counts with date filtering
         today = datetime.now().date()
+        start_of_today = datetime.combine(today, datetime.min.time())
+        start_of_week = datetime.combine(today - timedelta(days=today.weekday()), datetime.min.time())
+        start_of_month = datetime.combine(today.replace(day=1), datetime.min.time())
+        
+        total_prompts_today = await chat_repo.get_total_prompts_count(since=start_of_today)
+        total_prompts_this_week = await chat_repo.get_total_prompts_count(since=start_of_week)
+        total_prompts_this_month = await chat_repo.get_total_prompts_count(since=start_of_month)
+        
+        # Rate limit violations
         violations_today = await self.rate_limit_repo.count_violations(
             since=datetime.combine(today, datetime.min.time())
         )
@@ -161,11 +171,11 @@ class AdminService:
             "total_users": total_users,
             "active_users": active_users,
             "deactivated_users": deactivated_users,
-            "total_chats": 0,  # Add if needed
+            "total_chats": total_chats,
             "total_messages": total_messages,
-            "total_prompts_today": 0,  # Add if needed
-            "total_prompts_this_week": 0,
-            "total_prompts_this_month": 0,
+            "total_prompts_today": total_prompts_today,
+            "total_prompts_this_week": total_prompts_this_week,
+            "total_prompts_this_month": total_prompts_this_month,
             "total_rate_limit_violations": total_violations,
             "violations_today": violations_today,
             "system_status": system_status['current_status'],

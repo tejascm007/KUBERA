@@ -238,6 +238,28 @@ class ChatRepository:
         async with self.db.acquire() as conn:
             return await conn.fetchval(query)
     
+    async def get_total_chats_count(self) -> int:
+        """Get total chats across all users"""
+        query = "SELECT COUNT(*) FROM chats"
+        
+        async with self.db.acquire() as conn:
+            return await conn.fetchval(query) or 0
+    
+    async def get_total_prompts_count(self, since: Optional[datetime] = None) -> int:
+        """Get total prompts/messages across all users (optionally since a date)"""
+        
+        if since:
+            query = """
+                SELECT COUNT(*) FROM messages
+                WHERE created_at >= $1
+            """
+            async with self.db.acquire() as conn:
+                return await conn.fetchval(query, since) or 0
+        else:
+            query = "SELECT COUNT(*) FROM messages"
+            async with self.db.acquire() as conn:
+                return await conn.fetchval(query) or 0
+    
     async def get_user_message_count(self, user_id: str) -> int:
         """Get total messages for a user"""
         query = "SELECT COUNT(*) FROM messages WHERE user_id = $1"
@@ -264,3 +286,86 @@ class ChatRepository:
         
         async with self.db.acquire() as conn:
             return await conn.fetchval(query, *params)
+    
+    async def get_prompt_activity_timeseries(self, period: str) -> List[Dict[str, Any]]:
+        """
+        Get prompt counts as time-series data for charting
+        
+        Args:
+            period: '24h' (hourly), '7d' (daily), '30d' (daily)
+            
+        Returns:
+            List of dicts with 'label' and 'value' keys
+        """
+        from datetime import timedelta
+        
+        current_time = get_current_ist_time()
+        
+        if period == '24h':
+            # Last 24 hours, grouped by hour
+            start_time = current_time - timedelta(hours=24)
+            query = """
+                WITH hours AS (
+                    SELECT generate_series(
+                        date_trunc('hour', $1::timestamptz),
+                        date_trunc('hour', $2::timestamptz),
+                        interval '1 hour'
+                    ) AS hour_slot
+                )
+                SELECT 
+                    TO_CHAR(h.hour_slot AT TIME ZONE 'Asia/Kolkata', 'HH24:00') as label,
+                    COALESCE(COUNT(m.message_id), 0)::int as value
+                FROM hours h
+                LEFT JOIN messages m ON date_trunc('hour', m.created_at AT TIME ZONE 'Asia/Kolkata') = h.hour_slot
+                GROUP BY h.hour_slot
+                ORDER BY h.hour_slot ASC
+            """
+            async with self.db.acquire() as conn:
+                rows = await conn.fetch(query, start_time, current_time)
+                return [{'label': row['label'], 'value': row['value']} for row in rows]
+        
+        elif period == '7d':
+            # Last 7 days, grouped by day
+            start_time = current_time - timedelta(days=7)
+            query = """
+                WITH days AS (
+                    SELECT generate_series(
+                        date_trunc('day', $1::timestamptz),
+                        date_trunc('day', $2::timestamptz),
+                        interval '1 day'
+                    ) AS day_slot
+                )
+                SELECT 
+                    TO_CHAR(d.day_slot AT TIME ZONE 'Asia/Kolkata', 'Mon DD') as label,
+                    COALESCE(COUNT(m.message_id), 0)::int as value
+                FROM days d
+                LEFT JOIN messages m ON date_trunc('day', m.created_at AT TIME ZONE 'Asia/Kolkata') = d.day_slot
+                GROUP BY d.day_slot
+                ORDER BY d.day_slot ASC
+            """
+            async with self.db.acquire() as conn:
+                rows = await conn.fetch(query, start_time, current_time)
+                return [{'label': row['label'], 'value': row['value']} for row in rows]
+        
+        else:  # 30d
+            # Last 30 days, grouped by day
+            start_time = current_time - timedelta(days=30)
+            query = """
+                WITH days AS (
+                    SELECT generate_series(
+                        date_trunc('day', $1::timestamptz),
+                        date_trunc('day', $2::timestamptz),
+                        interval '1 day'
+                    ) AS day_slot
+                )
+                SELECT 
+                    TO_CHAR(d.day_slot AT TIME ZONE 'Asia/Kolkata', 'Mon DD') as label,
+                    COALESCE(COUNT(m.message_id), 0)::int as value
+                FROM days d
+                LEFT JOIN messages m ON date_trunc('day', m.created_at AT TIME ZONE 'Asia/Kolkata') = d.day_slot
+                GROUP BY d.day_slot
+                ORDER BY d.day_slot ASC
+            """
+            async with self.db.acquire() as conn:
+                rows = await conn.fetch(query, start_time, current_time)
+                return [{'label': row['label'], 'value': row['value']} for row in rows]

@@ -61,5 +61,7 @@ __all__ = [
     "RateLimitViolationResponse",
     "RateLimitViolationsListResponse",
     "ActivityLogResponse",
-    "ActivityLogListResponse"
+    "ActivityLogListResponse",
+    "PromptActivityDataPoint",
+    "PromptActivityResponse"
 ]

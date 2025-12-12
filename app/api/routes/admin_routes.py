@@ -33,7 +33,8 @@ from app.schemas.responses.admin_responses import (
     DeactivateUserResponse,
     SystemControlResponse,
     RateLimitViolationsListResponse,
-    ActivityLogListResponse
+    ActivityLogListResponse,
+    PromptActivityResponse
 )
 from app.services.admin_service import AdminService
 from app.services.rate_limit_service import RateLimitService
@@ -118,6 +119,42 @@ async def get_dashboard_stats(current_admin: Dict = Depends(get_current_admin)):
     
     stats = await admin_service.get_dashboard_stats()
     return stats
+
+
+@router.get(
+    "/dashboard/prompt-activity",
+    response_model=PromptActivityResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get prompt activity time-series",
+    description="Get prompt counts over time for charting"
+)
+async def get_prompt_activity(
+    period: str = Query("24h", description="Time period: 24h, 7d, or 30d"),
+    current_admin: Dict = Depends(get_current_admin)
+):
+    """
+    **Prompt Activity Time-Series**
+    
+    Returns prompt counts grouped by time intervals:
+    - **24h**: Last 24 hours, hourly data points
+    - **7d**: Last 7 days, daily data points
+    - **30d**: Last 30 days, daily data points
+    """
+    from app.db.repositories.chat_repository import ChatRepository
+    
+    if period not in ["24h", "7d", "30d"]:
+        period = "24h"
+    
+    db_pool = await get_db_pool()
+    chat_repo = ChatRepository(db_pool)
+    
+    data = await chat_repo.get_prompt_activity_timeseries(period)
+    
+    return {
+        "success": True,
+        "period": period,
+        "data": data
+    }
 
 
 # ============================================================================
@@ -507,8 +544,8 @@ async def get_portfolio_report_settings(current_admin: Dict = Depends(get_curren
     return {
         "frequency": system_status['portfolio_report_frequency'],
         "send_time": send_time,
-        "send_day_weekly": str(system_status['portfolio_report_send_day_weekly']) if system_status['portfolio_report_send_day_weekly'] else None,
-        "send_day_monthly": str(system_status['portfolio_report_send_day_monthly']) if system_status['portfolio_report_send_day_monthly'] else None,
+        "send_day_weekly": str(system_status['portfolio_report_send_day_weekly']) if system_status['portfolio_report_send_day_weekly'] is not None else None,
+        "send_day_monthly": str(system_status['portfolio_report_send_day_monthly']) if system_status['portfolio_report_send_day_monthly'] is not None else None,
         "timezone": "Asia/Kolkata",
         "last_sent": system_status['portfolio_report_last_sent'],
         "next_scheduled": system_status['portfolio_report_next_scheduled']
@@ -532,14 +569,71 @@ async def update_portfolio_report_settings(
     - Set frequency (disabled, daily, weekly, monthly)
     - Set send time (IST)
     - Set day for weekly/monthly reports
+    - Updates the scheduler job
     - Logs admin action
     """
     db_pool = await get_db_pool()
     
     system_repo = SystemRepository(db_pool)
     
-    settings_dict = request.dict()
+    # Convert send_time string to time object for database
+    from datetime import time as dt_time
+    time_parts = request.send_time.split(":")
+    send_time_obj = dt_time(int(time_parts[0]), int(time_parts[1]), int(time_parts[2]) if len(time_parts) > 2 else 0)
+    
+    # Map request fields to database column names
+    settings_dict = {
+        'portfolio_report_frequency': request.frequency,
+        'portfolio_report_send_time': send_time_obj,
+        'portfolio_report_send_day_weekly': request.send_day_weekly,
+        'portfolio_report_send_day_monthly': request.send_day_monthly,
+    }
     updated = await system_repo.update_portfolio_report_settings(settings_dict)
+    
+    # ========================================================================
+    # Update the background scheduler with the new schedule
+    # ========================================================================
+    next_run_time = None
+    try:
+        from app.background.scheduler import background_scheduler
+        next_run_time = await background_scheduler.update_portfolio_report_schedule(
+            frequency=request.frequency,
+            send_time=request.send_time,
+            day_weekly=request.send_day_weekly,
+            day_monthly=request.send_day_monthly
+        )
+        
+        # Update the next_scheduled in the database
+        if next_run_time:
+            await system_repo.update_portfolio_report_settings({
+                'portfolio_report_next_scheduled': next_run_time
+            })
+            # Refresh the updated dict
+            updated = await system_repo.get_system_status()
+    except Exception as e:
+        # Log error but don't fail the request - settings are saved
+        print(f"Warning: Failed to update scheduler: {e}")
+    
+    # ========================================================================
+    # Log admin action
+    # ========================================================================
+    try:
+        admin_repo = AdminRepository(db_pool)
+        await admin_repo.log_admin_action(
+            admin_id=current_admin["admin_id"],
+            action="portfolio_report_settings_updated",
+            target_type="system",
+            target_id=None,
+            old_value=None,
+            new_value={
+                "frequency": request.frequency,
+                "send_time": request.send_time,
+                "send_day_weekly": request.send_day_weekly,
+                "send_day_monthly": request.send_day_monthly
+            }
+        )
+    except Exception as e:
+        print(f"Warning: Failed to log admin action: {e}")
     
     # ========================================================================
     # FIX: Convert time and int to strings
@@ -554,8 +648,8 @@ async def update_portfolio_report_settings(
         "settings": {
             "frequency": updated['portfolio_report_frequency'],
             "send_time": send_time,
-            "send_day_weekly": str(updated['portfolio_report_send_day_weekly']) if updated['portfolio_report_send_day_weekly'] else None,
-            "send_day_monthly": str(updated['portfolio_report_send_day_monthly']) if updated['portfolio_report_send_day_monthly'] else None,
+            "send_day_weekly": str(updated['portfolio_report_send_day_weekly']) if updated['portfolio_report_send_day_weekly'] is not None else None,
+            "send_day_monthly": str(updated['portfolio_report_send_day_monthly']) if updated['portfolio_report_send_day_monthly'] is not None else None,
             "timezone": "Asia/Kolkata",
             "last_sent": updated['portfolio_report_last_sent'],
             "next_scheduled": updated['portfolio_report_next_scheduled']
@@ -634,15 +728,24 @@ async def get_activity_logs(
     - Filter by admin or action type
     - Includes old/new values for changes
     """
-    db_pool = await get_db_pool()
-    
-    admin_repo = AdminRepository(db_pool)
-    
-    logs = await admin_repo.get_activity_logs(limit, offset, admin_id, action)
-    total = await admin_repo.count_activity_logs(admin_id)
-    
-    return {
-        "success": True,
-        "total_logs": total,
-        "logs": logs
-    }
+    try:
+        db_pool = await get_db_pool()
+        
+        admin_repo = AdminRepository(db_pool)
+        
+        logs = await admin_repo.get_activity_logs(limit, offset, admin_id, action)
+        total = await admin_repo.count_activity_logs(admin_id)
+        
+        return {
+            "success": True,
+            "total_logs": total,
+            "logs": logs
+        }
+    except Exception as e:
+        # Handle database errors gracefully (e.g., table doesn't exist yet)
+        print(f"Error fetching activity logs: {e}")
+        return {
+            "success": True,
+            "total_logs": 0,
+            "logs": []
+        }
