@@ -94,9 +94,9 @@
 ┌────────────────▼────────────────────────────▼───────────────────┐
 │                    FASTAPI APPLICATION                          │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │                    API Endpoints (42)                      │ │
-│  │    Auth (8) | User (6) | Portfolio (5) | Chat (5)          │ │
-│  │           Admin (17) | WebSocket (1)                       │ │
+│  │                    API Endpoints (50)                      │ │
+│  │  Auth (11) | User (7) | Portfolio (5) | Chat (5)           │ │
+│  │        Admin (19) | Root (4) | WebSocket (1)               │ │
 │  └────────────────────────────────────────────────────────────┘ │
 │  ┌────────────────────────────────────────────────────────────┐ │
 │  │                  Business Logic Layer                      │ │
@@ -108,7 +108,7 @@
 │  └────────────────────────────────────────────────────────────┘ │
 └────────────┬──────────────────┬──────────────────┬──────────────┘
              │                  │                  │
-┌────────────▼────────┐ ┌──────▼───────┐ ┌────────▼────────────────┐
+┌────────────▼────────┐ ┌───────▼──────┐ ┌─────────▼───────────────┐
 │    PostgreSQL       │ │ MCP Servers  │ │  Background Scheduler   │
 │    (15 tables)      │ │ (5 servers)  │ │     (APScheduler)       │
 │                     │ │ (45 tools)   │ │                         │
@@ -445,70 +445,85 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 
 ## 📡 API Documentation
 
-### Authentication Endpoints (8)
+### Authentication Endpoints (11)
 
 ```http
-POST /auth/register/step1          # Send OTP
-POST /auth/register/step2          # Verify OTP
-POST /auth/register/step3          # Complete registration
-POST /auth/login                   # Login
-POST /auth/refresh                 # Refresh token
-POST /auth/logout                  # Logout
-POST /auth/password-reset/request  # Request reset
-POST /auth/password-reset/confirm  # Confirm reset
+POST /auth/register/step1              # Step 1: Send OTP to email
+POST /auth/register/step2              # Step 2: Verify OTP
+POST /auth/register/step3              # Step 3: Complete registration
+POST /auth/login                       # Login with username and password
+POST /auth/refresh                     # Refresh access token
+POST /auth/logout                      # Logout user
+GET  /auth/check-username/{username}   # Check username availability
+POST /auth/password-reset/send-otp     # Send OTP for password reset
+POST /auth/password-reset/confirm      # Confirm password reset with OTP
+POST /auth/forgot-password/send-otp    # Send forgot password OTP
+POST /auth/forgot-password/confirm     # Reset password with OTP
 ```
 
-### User Endpoints (6)
+### User Endpoints (7)
 
 ```http
-GET    /users/me                   # Get profile
-PUT    /users/me                   # Update profile
-PUT    /users/me/username          # Change username
-PUT    /users/me/password          # Change password
-GET    /users/me/preferences       # Get preferences
-PUT    /users/me/preferences       # Update preferences
+GET    /user/profile               # Get user profile
+PUT    /user/profile               # Update user profile
+PUT    /user/username              # Update username
+PUT    /user/password              # Update password
+GET    /user/email-preferences     # Get email preferences
+PUT    /user/email-preferences     # Update email preferences
+GET    /user/stats                 # Get user statistics
 ```
 
 ### Portfolio Endpoints (5)
 
 ```http
-GET    /portfolio                  # Get portfolio
-POST   /portfolio                  # Add stock
-PUT    /portfolio/{portfolio_id}   # Update stock
-DELETE /portfolio/{portfolio_id}   # Remove stock
-POST   /portfolio/update-prices    # Update prices
+GET    /portfolio/                 # Get user portfolio
+POST   /portfolio/                 # Add portfolio entry
+PUT    /portfolio/{portfolio_id}   # Update portfolio entry
+DELETE /portfolio/{portfolio_id}   # Delete portfolio entry
+POST   /portfolio/update-prices    # Update portfolio prices
 ```
 
 ### Chat Endpoints (5)
 
 ```http
-GET    /chats                      # List chats
-POST   /chats                      # Create chat
+GET    /chats/                     # Get all chats
+POST   /chats/                     # Create new chat
 GET    /chats/{chat_id}            # Get chat with messages
-PUT    /chats/{chat_id}            # Rename chat
 DELETE /chats/{chat_id}            # Delete chat
+PUT    /chats/{chat_id}/rename     # Rename chat
 ```
 
-### Admin Endpoints (17)
+### Admin Endpoints (19)
 
 ```http
-POST   /admin/login/send-otp       # Send OTP
-POST   /admin/login/verify-otp     # Verify OTP
-GET    /admin/dashboard            # Dashboard stats
-GET    /admin/users                # List users
-GET    /admin/users/{user_id}      # Get user
-PUT    /admin/users/{user_id}/status  # Update status
-GET    /admin/rate-limits          # Get config
-PUT    /admin/rate-limits          # Update config
-GET    /admin/rate-limits/violations  # List violations
-GET    /admin/system/status        # System status
-POST   /admin/system/start         # Start system
-POST   /admin/system/stop          # Stop system
-GET    /admin/portfolio-reports/config  # Report config
-PUT    /admin/portfolio-reports/config  # Update config
-POST   /admin/portfolio-reports/send    # Send reports
-GET    /admin/activity-logs        # Activity logs
-GET    /admin/analytics            # Analytics
+POST   /admin/login/send-otp                   # Admin login - Send OTP
+POST   /admin/login/verify-otp                 # Admin login - Verify OTP
+GET    /admin/dashboard                        # Get dashboard statistics
+GET    /admin/dashboard/prompt-activity        # Get prompt activity time-series
+GET    /admin/users                            # Get all users
+GET    /admin/users/{user_id}                  # Get user details
+PUT    /admin/users/{user_id}/deactivate       # Deactivate user
+PUT    /admin/users/{user_id}/reactivate       # Reactivate user
+GET    /admin/rate-limits/config               # Get rate limit configuration
+PUT    /admin/rate-limits/global               # Update global rate limits
+PUT    /admin/rate-limits/user/{user_id}       # Set user-specific rate limits
+POST   /admin/rate-limits/whitelist            # Add user to whitelist
+DELETE /admin/rate-limits/whitelist/{user_id}  # Remove user from whitelist
+POST   /admin/rate-limits/reset/{user_id}      # Reset user rate limit counters
+GET    /admin/rate-limits/violations           # Get rate limit violations
+GET    /admin/portfolio-reports/settings       # Get portfolio report settings
+PUT    /admin/portfolio-reports/settings       # Update portfolio report settings
+POST   /admin/system/control                   # System control (start/stop)
+GET    /admin/activity-logs                    # Get admin activity logs
+```
+
+### Root Endpoints (4)
+
+```http
+GET    /                           # API Root
+GET    /health                     # Health Check
+GET    /mcp/tools                  # List MCP Tools
+GET    /scheduler/status           # Scheduler Status
 ```
 
 ### WebSocket (1)
@@ -908,7 +923,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 |--------|-------|
 | 📁 Total Files | 150+ |
 | 📝 Lines of Code | 15,000+ |
-| 🌐 REST Endpoints | 42 |
+| 🌐 REST Endpoints | 50 |
 | 🔌 WebSocket Endpoints | 1 |
 | 🗄️ Database Tables | 15 |
 | 📇 Database Indexes | 60+ |
