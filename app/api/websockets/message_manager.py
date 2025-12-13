@@ -43,6 +43,7 @@ class MessageManager:
                 response_completed_at = NOW()
             WHERE message_id = $6
         """
+        logger.info(f"Saving chart_url to DB: {chart_url[:50] if chart_url else 'None'}")
         await self.db_pool.execute(
             query,
             response,
@@ -60,7 +61,7 @@ class MessageManager:
             SELECT user_message, assistant_response
             FROM messages
             WHERE chat_id = $1
-            ORDER BY created_at DESC
+            ORDER BY created_at ASC
             LIMIT $2
         """
         messages = await self.db_pool.fetch(query, self.chat_id, limit)

@@ -19,13 +19,24 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.core.utils import fetch_ticker_safe, fetch_history_safe, fetch_info_safe, fetch_financials_safe
 import uuid
 from supabase import create_client, Client
+import logging
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 from dotenv import load_dotenv
 load_dotenv() 
 # Initialize Supabase client
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Check if Supabase is configured
+if not SUPABASE_URL or not SUPABASE_KEY:
+    logger.warning("Supabase not configured! SUPABASE_URL or SUPABASE_ANON_KEY missing.")
+    supabase = None
+else:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    logger.info(f"Supabase client initialized: {SUPABASE_URL}")
 
 def upload_chart_to_supabase(html_content: str, stock_symbol: str, chart_type: str) -> str:
     """
@@ -37,13 +48,19 @@ def upload_chart_to_supabase(html_content: str, stock_symbol: str, chart_type: s
         chart_type: Type of chart (e.g., "price_volume")
     
     Returns:
-        Public URL of uploaded chart
+        Public URL of uploaded chart, or None if upload fails
     """
+    if supabase is None:
+        logger.error("Supabase client not initialized - cannot upload chart")
+        return None
+        
     try:
         # Generate unique filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         chart_id = str(uuid.uuid4())[:8]
         filename = f"{stock_symbol}_{chart_type}_{timestamp}_{chart_id}.html"
+        
+        logger.info(f"Uploading chart: {filename} (size: {len(html_content)} bytes)")
         
         # Upload to Supabase Storage
         response = supabase.storage.from_("charts").upload(
@@ -55,13 +72,18 @@ def upload_chart_to_supabase(html_content: str, stock_symbol: str, chart_type: s
             }
         )
         
+        # Check if upload was successful
+        logger.info(f"Supabase upload response: {response}")
+        
         # Get public URL
         public_url = supabase.storage.from_("charts").get_public_url(filename)
         
+        logger.info(f"Chart uploaded successfully: {public_url[:80]}...")
         return public_url
     
     except Exception as e:
-        print(f"Error uploading chart: {e}")
+        logger.error(f"Error uploading chart to Supabase: {e}")
+        logger.exception("Full traceback:")
         return None
 # Try to import plotting libraries
 try:
@@ -217,8 +239,8 @@ def generate_price_volume_chart(
             if chart_url:
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
-                # Optional: Keep chart_html for backward compatibility or remove it
-                # result["chart_html"] = chart_html  # Remove to reduce payload
+                # Include chart HTML so frontend can render directly
+                result["chart_html"] = chart_html
             else:
                 result["chart_url"] = None
                 result["chart_available"] = False
@@ -340,8 +362,7 @@ def generate_candlestick_chart(
             if chart_url:
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
-                # Optional: Keep chart_html for backward compatibility or remove it
-                # result["chart_html"] = chart_html  # Remove to reduce payload
+                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
                 result["chart_available"] = False
@@ -509,7 +530,7 @@ def generate_technical_indicators_chart(
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
                 # Optional: Keep chart_html for backward compatibility or remove it
-                # result["chart_html"] = chart_html  # Remove to reduce payload
+                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
                 result["chart_available"] = False
@@ -606,7 +627,7 @@ def generate_fundamental_comparison_chart(
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
                 # Optional: Keep chart_html for backward compatibility or remove it
-                # result["chart_html"] = chart_html  # Remove to reduce payload
+                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
                 result["chart_available"] = False
@@ -722,7 +743,7 @@ def generate_financial_trend_chart(
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
                 # Optional: Keep chart_html for backward compatibility or remove it
-                # result["chart_html"] = chart_html  # Remove to reduce payload
+                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
                 result["chart_available"] = False
@@ -832,7 +853,7 @@ def generate_performance_vs_benchmark_chart(
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
                 # Optional: Keep chart_html for backward compatibility or remove it
-                # result["chart_html"] = chart_html  # Remove to reduce payload
+                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
                 result["chart_available"] = False
@@ -915,7 +936,7 @@ def generate_valuation_heatmap(
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
                 # Optional: Keep chart_html for backward compatibility or remove it
-                # result["chart_html"] = chart_html  # Remove to reduce payload
+                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
                 result["chart_available"] = False
@@ -1005,7 +1026,7 @@ def generate_portfolio_composition_chart(
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
                 # Optional: Keep chart_html for backward compatibility or remove it
-                # result["chart_html"] = chart_html  # Remove to reduce payload
+                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
                 result["chart_available"] = False
@@ -1091,7 +1112,7 @@ def generate_dividend_timeline_chart(
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
                 # Optional: Keep chart_html for backward compatibility or remove it
-                # result["chart_html"] = chart_html  # Remove to reduce payload
+                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
                 result["chart_available"] = False
@@ -1196,7 +1217,7 @@ def generate_risk_return_scatter(
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
                 # Optional: Keep chart_html for backward compatibility or remove it
-                # result["chart_html"] = chart_html  # Remove to reduce payload
+                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
                 result["chart_available"] = False

@@ -56,11 +56,29 @@ class MCPToolHandler:
                     "error": result.get("error", "Unknown error")
                 }
             
+            # Get the raw result
+            raw_result = result["result"]
+            
+            # Debug: Log the result type and structure
+            logger.info(f"Tool {tool_name} raw result type: {type(raw_result)}")
+            if isinstance(raw_result, str):
+                logger.info(f"Tool {tool_name} raw result (string, first 200 chars): {raw_result[:200]}")
+                # Try to parse JSON string to dict
+                try:
+                    raw_result = json.loads(raw_result)
+                    logger.info(f"Tool {tool_name} result parsed from JSON: keys={list(raw_result.keys()) if isinstance(raw_result, dict) else 'not dict'}")
+                except (json.JSONDecodeError, TypeError):
+                    logger.info(f"Tool {tool_name} result is not JSON parseable")
+            elif isinstance(raw_result, dict):
+                logger.info(f"Tool {tool_name} result is dict with keys: {list(raw_result.keys())}")
+                if "chart_url" in raw_result:
+                    logger.info(f"Tool {tool_name} has chart_url: {raw_result['chart_url'][:50] if raw_result['chart_url'] else 'None'}...")
+            
             return {
                 "tool_call_id": tool_call_id,
                 "tool_name": tool_name,
                 "success": True,
-                "result": result["result"],
+                "result": raw_result,
                 "error": None
             }
             
@@ -276,7 +294,7 @@ class MCPToolHandler:
     def get_tools_for_openai(self) -> List[Dict[str, Any]]:
         """
         Convert MCP tools to OpenAI function calling format
-        (Groq uses the same format)
+        (openrouter uses the same format)
         
         Returns:
             List of tool definitions in OpenAI format

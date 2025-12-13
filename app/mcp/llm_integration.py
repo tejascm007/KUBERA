@@ -1,6 +1,6 @@
 """
 LLM + MCP Integration
-Orchestrates LLM (Groq) with MCP tools
+Orchestrates LLM (OpenRouter) with MCP tools
 """
 
 import json
@@ -8,8 +8,7 @@ import logging
 from typing import Dict, Any, List, AsyncGenerator
 from datetime import datetime
 from asyncpg import Record
-from groq import AsyncGroq
-from groq.types.chat import ChatCompletionMessageToolCall
+from openai import AsyncOpenAI
 
 from app.core.config import settings
 from app.mcp.client import kubera_mcp_client
@@ -33,21 +32,29 @@ def _to_serializable(obj):
 
 class LLMMCPOrchestrator:
     """
-    Orchestrates LLM (Groq) with MCP tools
+    Orchestrates LLM (OpenRouter) with MCP tools
     Handles the agentic loop: LLM -> Tools -> LLM -> Response
     """
     
     def __init__(self):
         self.mcp_client = kubera_mcp_client
         self.tool_handler = mcp_tool_handler
-        self.groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        # OpenRouter uses OpenAI-compatible API
+        self.openai_client = AsyncOpenAI(
+            api_key=settings.OPENROUTER_API_KEY,
+            base_url=settings.OPENROUTER_BASE_URL,
+            default_headers={
+                "HTTP-Referer": settings.OPENROUTER_SITE_URL,
+                "X-Title": settings.OPENROUTER_APP_NAME,
+            }
+        )
     
     # ========================================================================
     # SYSTEM PROMPT
     # ========================================================================
     
     def get_system_prompt(self) -> str:
-        """Get system prompt for Groq LLM"""
+        """Get system prompt for OpenRouter LLM"""
         return """You are KUBERA, a friendly and knowledgeable AI assistant who specializes in the Indian stock market. Think of yourself as a trusted financial advisor friend who happens to have access to powerful market analysis tools.
 
 ## Who You Are
@@ -96,11 +103,11 @@ Remember: You're not just a data fetcher - you're a thoughtful advisor who helps
         Process user message with streaming responses
         
         This is the main agentic loop:
-        1. Send prompt to Groq
-        2. Groq decides which tools to call
+        1. Send prompt to openrouter
+        2. openrouter decides which tools to call
         3. Execute tools via MCP
-        4. Send results back to Groq
-        5. Groq processes and responds
+        4. Send results back to openrouter
+        5. openrouter processes and responds
         6. Stream response to client
         
         Args:
@@ -129,13 +136,14 @@ Remember: You're not just a data fetcher - you're a thoughtful advisor who helps
             "content": user_message
         })
         
-        # Get tools in OpenAI format (Groq uses same format)
+        # Get tools in OpenAI format (openrouter uses same format)
         tools = self.tool_handler.get_tools_for_openai()
         
         iteration = 0
         total_tokens = 0
         tools_used = []
         chart_url = None  # Track chart URL from visualization tools
+        chart_html = None  # Track chart HTML for direct rendering
         
         while iteration < max_iterations:
             iteration += 1
@@ -144,9 +152,9 @@ Remember: You're not just a data fetcher - you're a thoughtful advisor who helps
 
                 messages = _to_serializable(messages)   
                 tools = _to_serializable(tools)
-                # Call Groq with streaming
-                stream = await self.groq_client.chat.completions.create(
-                    model=settings.GROQ_MODEL,
+                # Call OpenRouter with streaming (OpenAI-compatible API)
+                stream = await self.openai_client.chat.completions.create(
+                    model=settings.OPENROUTER_MODEL,
                     messages=messages,
                     tools=tools,
                     tool_choice="auto",
@@ -214,7 +222,8 @@ Remember: You're not just a data fetcher - you're a thoughtful advisor who helps
                         "iterations": iteration,
                         "tokens_used": int(total_tokens),
                         "tools_used": tools_used,
-                        "chart_url": chart_url  # Include chart URL in complete event
+                        "chart_url": chart_url,  # Include chart URL for storage
+                        "chart_html": chart_html  # Include chart HTML for direct rendering
                     }
                     break
                 
@@ -246,11 +255,14 @@ Remember: You're not just a data fetcher - you're a thoughtful advisor who helps
                     if result["success"]:
                         tools_used.append(result["tool_name"])
                         
-                        # Extract chart_url from visualization tool results
+                        # Extract chart_url and chart_html from visualization tool results
                         if result.get("result") and isinstance(result["result"], dict):
                             if result["result"].get("chart_url"):
                                 chart_url = result["result"]["chart_url"]
                                 logger.info(f"Chart URL extracted: {chart_url[:50]}...")
+                            if result["result"].get("chart_html"):
+                                chart_html = result["result"]["chart_html"]
+                                logger.info(f"Chart HTML extracted: {len(chart_html)} bytes")
                         
                         yield {
                             "type": "tool_complete",

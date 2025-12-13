@@ -98,12 +98,22 @@ class LLMService:
                     if isinstance(msg, Record):
                         msg = dict(msg)
                     
-                    # Map database format to OpenAI format
-                    role = "assistant" if msg.get("sender") == "assistant" else "user"
-                    normalized_history.append({
-                        "role": role,
-                        "content": msg.get("content", "")
-                    })
+                    # Database returns user_message and assistant_response per row
+                    # Add user message first
+                    user_msg = msg.get("user_message")
+                    if user_msg:
+                        normalized_history.append({
+                            "role": "user",
+                            "content": user_msg
+                        })
+                    
+                    # Add assistant response
+                    assistant_msg = msg.get("assistant_response")
+                    if assistant_msg:
+                        normalized_history.append({
+                            "role": "assistant",
+                            "content": assistant_msg
+                        })
 
             async for chunk in process_user_message_streaming(
                 user_message=user_message,
@@ -153,10 +163,13 @@ class LLMService:
                     # Response completed with metadata
                     logger.info(f" Response complete. Tokens: {chunk.get('tokens_used')}, Tools: {chunk.get('tools_used')}")
                     
-                    # Include chart_url if visualization tool was used
+                    # Include chart_url and chart_html if visualization tool was used
                     chart_url = chunk.get("chart_url")
+                    chart_html = chunk.get("chart_html")
                     if chart_url:
                         logger.info(f" Chart URL available: {chart_url[:50]}...")
+                    if chart_html:
+                        logger.info(f" Chart HTML available: {len(chart_html)} bytes")
                     
                     yield {
                         "type": "message_complete",
@@ -164,7 +177,8 @@ class LLMService:
                             "tokens_used": chunk.get("tokens_used", 0),
                             "tools_used": chunk.get("tools_used", []),
                             "iterations": chunk.get("iterations", 1),
-                            "chart_url": chart_url
+                            "chart_url": chart_url,
+                            "chart_html": chart_html  # Send HTML to frontend
                         }
                     }
                 

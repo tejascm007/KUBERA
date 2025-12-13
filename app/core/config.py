@@ -47,21 +47,26 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: Optional[str] = Field(..., env="SMTP_FROM_EMAIL")
     SMTP_FROM_NAME: str = "KUBERA"
 
-    # # ==================== ANTHROPIC (REQUIRED) ====================
-    # ANTHROPIC_API_KEY: str
-    # CLAUDE_MODEL: str = "claude-3-5-sonnet-20241022"
-    # MAX_TOKENS: int = 4096
-    # ========== LLM CONFIGURATION (GROQ) ==========
-    GROQ_API_KEY: str = Field(..., env="GROQ_API_KEY")
-    # Groq models:
-    # - llama-3.1-70b-versatile (best for complex reasoning)
-    # - llama-3.1-8b-instant (fastest)
-    # - mixtral-8x7b-32768 (good balance)
-    # - gemma2-9b-it (efficient)
-    GROQ_MODEL: str = Field(
-        default="llama-3.3-70b-versatile",
-        env="GROQ_MODEL"
+    # ========== LLM CONFIGURATION (OPENROUTER) ==========
+    OPENROUTER_API_KEY: str = Field(..., env="OPENROUTER_API_KEY")
+    OPENROUTER_BASE_URL: str = Field(
+        default="https://openrouter.ai/api/v1",
+        env="OPENROUTER_BASE_URL"
     )
+    # OpenRouter models - you can use any model from https://openrouter.ai/models
+    # Popular options:
+    # - anthropic/claude-3.5-sonnet (best for complex reasoning)
+    # - openai/gpt-4-turbo (powerful)
+    # - meta-llama/llama-3.1-70b-instruct (open source, fast)
+    # - google/gemini-pro (good balance)
+    # - mistralai/mixtral-8x7b-instruct (efficient)
+    OPENROUTER_MODEL: str = Field(
+        default="meta-llama/llama-3.3-70b-instruct",
+        env="OPENROUTER_MODEL"
+    )
+    # Optional: Your site URL and app name for OpenRouter rankings
+    OPENROUTER_SITE_URL: str = Field(default="http://localhost:8000", env="OPENROUTER_SITE_URL")
+    OPENROUTER_APP_NAME: str = Field(default="KUBERA", env="OPENROUTER_APP_NAME")
     
     MAX_TOKENS: int = Field(default=4096, env="MAX_TOKENS")
     TEMPERATURE: float = Field(default=0.7, env="TEMPERATURE")

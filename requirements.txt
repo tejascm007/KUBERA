@@ -73,3 +73,4 @@ python-dateutil
 
 #cloud
 supabase
+openai

@@ -5,7 +5,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14+-316192.svg)](https://www.postgresql.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**KUBERA** is an intelligent stock analysis chatbot specialized in Indian markets (NSE/BSE). Built with FastAPI, PostgreSQL, and Claude 3.5 Sonnet, it provides comprehensive stock analysis through AI-powered conversations.
+**KUBERA** is an intelligent stock analysis chatbot specialized in Indian markets (NSE/BSE). Built with FastAPI, PostgreSQL, and OpenRouter (supporting multiple LLMs including Llama 3.3, Claude, GPT-4), it provides comprehensive stock analysis through AI-powered conversations.
 
 ---
 
@@ -37,7 +37,7 @@
 ## ✨ Features
 
 ### Core Features
-- 🤖 **AI-Powered Chat**: Real-time conversations with Claude 3.5 Sonnet
+- 🤖 **AI-Powered Chat**: Real-time conversations powered by OpenRouter (Llama 3.3, Claude, GPT-4, etc.)
 - 📊 **Stock Analysis**: Comprehensive analysis of NSE/BSE stocks
 - 💼 **Portfolio Tracking**: Track your investments with live price updates
 - 📈 **Technical Analysis**: 45 MCP tools for in-depth analysis
@@ -131,7 +131,8 @@
 ### AI & LLM
 | Technology | Purpose |
 |------------|---------|
-| Claude 3.5 Sonnet | Anthropic LLM |
+| OpenRouter | LLM Gateway (multi-model) |
+| Llama 3.3-70B | Default LLM Model |
 | LangChain | LLM Orchestration |
 | FastMCP | MCP Protocol |
 
@@ -330,16 +331,21 @@ Edit `.env` and configure the following:
 # CRITICAL SETTINGS
 # ===========================================
 SECRET_KEY=your_secret_key_here
-ANTHROPIC_API_KEY=sk-ant-your-api-key
 
 # ===========================================
-# DATABASE
+# LLM (OPENROUTER)
 # ===========================================
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=kubera_user
+OPENROUTER_API_KEY=sk-or-your-api-key
+OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct  # or anthropic/claude-3.5-sonnet
+
+# ===========================================
+# DATABASE (SUPABASE)
+# ===========================================
+POSTGRES_HOST=your-project.pooler.supabase.com
+POSTGRES_PORT=6543
+POSTGRES_USER=postgres.your-project
 POSTGRES_PASSWORD=your_password
-POSTGRES_DB=kubera_db
+POSTGRES_DB=postgres
 
 # ===========================================
 # SMTP (for emails)
@@ -348,6 +354,7 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your-email@gmail.com
 SMTP_PASSWORD=your-app-password
+SMTP_FROM_EMAIL=your-email@gmail.com
 
 # ===========================================
 # SUPABASE (for chart storage)
@@ -662,11 +669,12 @@ const ws = new WebSocket('ws://localhost:8000/ws/chat?token=YOUR_JWT_TOKEN');
 {
     "type": "message_complete",
     "message_id": "uuid",
-    "chart_url": "https://...",  // if visualization was generated
     "metadata": {
         "tokens_used": 1500,
         "tools_used": ["fetch_company_fundamentals", "fetch_current_price_data"],
-        "processing_time_ms": 2500
+        "processing_time_ms": 2500,
+        "chart_url": "https://...",    // Supabase storage URL (if chart generated)
+        "chart_html": "<html>..."      // Direct HTML for rendering (if chart generated)
     }
 }
 
@@ -838,7 +846,7 @@ pytest -m integration
 
 ```bash
 # Check if all required API keys are set
-echo $ANTHROPIC_API_KEY
+echo $OPENROUTER_API_KEY
 
 # Verify MCP server files exist
 ls mcp_servers/
@@ -910,7 +918,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- **Anthropic** for Claude 3.5 Sonnet
+- **OpenRouter** for multi-model LLM access
 - **FastAPI** team for the amazing framework
 - **FastMCP** for MCP protocol implementation
 - **yfinance** for stock data

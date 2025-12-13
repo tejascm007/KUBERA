@@ -249,6 +249,7 @@ class ChatWebSocketHandler:
             tools_used = []
             tokens_used = 0
             chart_url = None  # Track chart URL from visualization tools
+            chart_html = None  # Track chart HTML for direct rendering
             processing_start = datetime.utcnow()
             
             async for chunk in self.llm_service.stream_response(
@@ -282,11 +283,16 @@ class ChatWebSocketHandler:
                     tokens_used = chunk["metadata"].get("tokens_used", 0)
                     tools_used = chunk["metadata"].get("tools_used", [])
                     chart_url = chunk["metadata"].get("chart_url")
+                    chart_html = chunk["metadata"].get("chart_html")  # Chart HTML for direct rendering
+                    # Debug: Log chart data received
+                    logger.info(f"Message complete - chart_url: {chart_url[:50] if chart_url else 'None'}...")
+                    logger.info(f"Message complete - chart_html size: {len(chart_html) if chart_html else 0} bytes")
             
             #   SAVE ASSISTANT RESPONSE
             processing_time = (datetime.utcnow() - processing_start).total_seconds() * 1000
             
             try:
+                logger.info(f"Saving response - chart_url to save: {chart_url[:50] if chart_url else 'None'}")
                 await self.message_manager.save_assistant_response(
                     message_id=message_id,
                     response=response_text,
@@ -305,7 +311,8 @@ class ChatWebSocketHandler:
                     "tokens_used": tokens_used,
                     "tools_used": tools_used,
                     "processing_time_ms": int(processing_time),
-                    "chart_url": chart_url  # Include chart URL for frontend
+                    "chart_url": chart_url,  # Include chart URL for frontend
+                    "chart_html": chart_html  # Include chart HTML for direct rendering
                 }
             )
             
