@@ -184,18 +184,12 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        # Local development
         "http://localhost:3000",
         "http://localhost:5173",
         "http://localhost:8080",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:8080",
-        # Vercel production - UPDATE with your actual Vercel domain
-        "https://kubera-frontend-tau.vercel.app"
-        
-        # Vercel preview deployments (pattern: kubera-*-username.vercel.app)
-        # Add your specific preview URLs here as needed
     ],
     allow_credentials=True,
     allow_methods=["*"],
