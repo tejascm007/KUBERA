@@ -974,8 +974,7 @@ docker-compose up -d
 
 <div align="center">
 
-**Made with ❤️ in India**
 
-**Version**: 1.0.0 | **Last Updated**: December 2024
+**Version**: 1.0.0 | **Last Updated**: December 2025
 
 </div>
