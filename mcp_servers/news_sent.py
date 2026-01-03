@@ -16,11 +16,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import json
 from app.core.utils import fetch_ticker_safe, fetch_history_safe, fetch_info_safe, fetch_financials_safe
 
+# Load environment variables from .env file (required for MCP subprocess)
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
+
 # Initialize FastMCP
 mcp = FastMCP("NewsSentimentServer")
 
-# API Keys
-NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
+# API Keys - match .env variable names
+NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "")  # Fixed: was NEWS_API_KEY
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "")
 ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "")
 
@@ -157,6 +161,64 @@ def fetch_news_articles(
             except:
                 pass
         
+        # Try NewsAPI if API key available (better for Indian stocks - searches by company name)
+        if NEWSAPI_KEY and len(articles) < limit:
+            try:
+                newsapi_url = "https://newsapi.org/v2/everything"
+                # Search by company name for better results with Indian stocks
+                search_query = company_name if company_name != stock_symbol else stock_symbol
+                params = {
+                    "q": f'"{search_query}" OR "{stock_symbol}"',
+                    "from": (datetime.now() - timedelta(days=min(days, 30))).strftime("%Y-%m-%d"),  # NewsAPI free tier: max 30 days
+                    "to": datetime.now().strftime("%Y-%m-%d"),
+                    "language": "en",
+                    "sortBy": "publishedAt",
+                    "pageSize": min(limit - len(articles), 20),  # NewsAPI max 100 per request
+                    "apiKey": NEWSAPI_KEY
+                }
+                response = requests.get(newsapi_url, params=params, timeout=10)
+                if response.status_code == 200:
+                    newsapi_data = response.json()
+                    newsapi_articles = newsapi_data.get("articles", [])
+                    
+                    for article in newsapi_articles:
+                        title = article.get("title", "")
+                        description = article.get("description", "") or ""
+                        
+                        sentiment_label, sentiment_score = calculate_sentiment_score(title + " " + description)
+                        sentiment_counts[sentiment_label] += 1
+                        
+                        # Parse date
+                        pub_date = article.get("publishedAt", "")
+                        if pub_date:
+                            try:
+                                pub_date = datetime.fromisoformat(pub_date.replace("Z", "+00:00")).strftime("%Y-%m-%d")
+                            except:
+                                pub_date = datetime.now().strftime("%Y-%m-%d")
+                        
+                        articles.append({
+                            "title": title,
+                            "source": article.get("source", {}).get("name", "NewsAPI"),
+                            "publish_date": pub_date,
+                            "url": article.get("url", ""),
+                            "summary": description[:200] + "..." if len(description) > 200 else description,
+                            "sentiment": sentiment_label,
+                            "sentiment_score": round(sentiment_score, 2),
+                            "relevance_score": 0.88,
+                            "category": "general",
+                            "impact": "medium"
+                        })
+            except Exception as e:
+                # Log but don't fail
+                pass
+        
+        # Determine data sources used
+        sources_used = ["Yahoo Finance"]
+        if FINNHUB_API_KEY:
+            sources_used.append("Finnhub")
+        if NEWSAPI_KEY:
+            sources_used.append("NewsAPI")
+        
         result = {
             "stock_symbol": stock_symbol,
             "company_name": company_name,
@@ -164,7 +226,12 @@ def fetch_news_articles(
             "total_articles": len(articles),
             "news_articles": articles,
             "sentiment_distribution": sentiment_counts,
-            "data_source": "Yahoo Finance / Finnhub"
+            "data_source": " / ".join(sources_used),
+            "api_status": {
+                "yahoo_finance": "available",
+                "finnhub": "configured" if FINNHUB_API_KEY else "not configured",
+                "newsapi": "configured" if NEWSAPI_KEY else "not configured"
+            }
         }
         
         return result

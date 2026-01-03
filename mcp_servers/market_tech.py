@@ -23,6 +23,10 @@ except ImportError:
     TALIB_AVAILABLE = False
     print("Warning: TA-Lib not available. Technical indicators will use pandas calculations.")
 
+# Load environment variables from .env file (required for MCP subprocess)
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
+
 # Initialize FastMCP
 mcp = FastMCP("MarketDataTechnicalServer")
 

@@ -25,7 +25,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from dotenv import load_dotenv
-load_dotenv() 
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')) 
 # Initialize Supabase client
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
