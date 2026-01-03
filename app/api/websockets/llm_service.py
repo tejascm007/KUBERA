@@ -22,13 +22,70 @@ class LLMService:
     - Groq LLM integration
     - MCP tool orchestration
     - Real-time streaming
+    - Portfolio context injection
     - Error handling
     """
     
-    def __init__(self):
-        """Initialize LLM Service"""
+    def __init__(self, db_pool=None):
+        """Initialize LLM Service with optional database pool for portfolio access"""
         self.mcp_client = kubera_mcp_client
+        self.db_pool = db_pool
         logger.info("LLMService initialized (using LLMMCPOrchestrator)")
+    
+    async def _fetch_portfolio_context(self, user_id: str) -> str:
+        """
+        Fetch user's portfolio and format it as context for LLM
+        
+        Args:
+            user_id: User's UUID
+            
+        Returns:
+            Formatted portfolio context string, or empty string if no portfolio
+        """
+        if not self.db_pool:
+            logger.warning("No database pool available for portfolio fetch")
+            return ""
+        
+        try:
+            from app.db.repositories.portfolio_repository import PortfolioRepository
+            
+            portfolio_repo = PortfolioRepository(self.db_pool)
+            portfolio_entries = await portfolio_repo.get_user_portfolio(user_id)
+            
+            if not portfolio_entries:
+                return ""
+            
+            # Format portfolio data for LLM
+            portfolio_lines = []
+            total_investment = 0
+            
+            for entry in portfolio_entries:
+                symbol = entry.get('stock_symbol', 'Unknown')
+                exchange = entry.get('exchange', 'NSE')
+                quantity = entry.get('quantity', 0)
+                buy_price = entry.get('buy_price', 0)
+                investment = quantity * buy_price
+                total_investment += investment
+                
+                portfolio_lines.append(
+                    f"- {symbol} ({exchange}): {quantity} shares @ ₹{buy_price:.2f} = ₹{investment:,.2f}"
+                )
+            
+            portfolio_context = f"""
+## User's Current Portfolio Holdings
+The user has the following stocks in their portfolio (total investment: ₹{total_investment:,.2f}):
+
+{chr(10).join(portfolio_lines)}
+
+You can reference this portfolio data when answering questions about the user's holdings.
+"""
+            logger.info(f"Portfolio context prepared with {len(portfolio_entries)} entries")
+            return portfolio_context
+            
+        except Exception as e:
+            logger.error(f"Error fetching portfolio context: {e}")
+            return ""
+    
     
     async def stream_response(
         self,
@@ -115,8 +172,22 @@ class LLMService:
                             "content": assistant_msg
                         })
 
+            # ========================================================================
+            # STEP 3: INJECT PORTFOLIO CONTEXT
+            # ========================================================================
+            
+            # Fetch user's portfolio and inject as context
+            portfolio_context = await self._fetch_portfolio_context(user_id)
+            
+            # If portfolio context exists, inject it as a system-like user message
+            # This gives the LLM knowledge of the user's holdings
+            enhanced_message = user_message
+            if portfolio_context:
+                enhanced_message = f"{user_message}\n\n[SYSTEM CONTEXT - User's Portfolio Data]\n{portfolio_context}"
+                logger.info(f"Portfolio context injected into message for user {user_id}")
+
             async for chunk in process_user_message_streaming(
-                user_message=user_message,
+                user_message=enhanced_message,
                 conversation_history=normalized_history
             ):
 

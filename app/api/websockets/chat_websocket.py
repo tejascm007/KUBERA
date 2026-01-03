@@ -49,7 +49,7 @@ class ChatWebSocketHandler:
         
         # Initialize services
         self.message_manager = MessageManager(db_pool, user_id, chat_id)
-        self.llm_service = LLMService()
+        self.llm_service = LLMService(db_pool)  # Pass db_pool for portfolio access
         self.rate_limiter = RateLimiter(db_pool, user_id)
         
         # Initialize response streamer for cleaner streaming
