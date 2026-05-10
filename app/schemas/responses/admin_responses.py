@@ -49,6 +49,10 @@ class DashboardStatsResponse(BaseModel):
     system_status: str
     portfolio_report_frequency: str
     portfolio_report_last_sent: Optional[datetime] = None
+    # Super admin — admin counts
+    total_admins: Optional[int] = None
+    active_admins: Optional[int] = None
+    inactive_admins: Optional[int] = None
     
     class Config:
         json_schema_extra = {
@@ -65,9 +69,13 @@ class DashboardStatsResponse(BaseModel):
                 "violations_today": 12,
                 "system_status": "running",
                 "portfolio_report_frequency": "weekly",
-                "portfolio_report_last_sent": "2024-12-02T09:00:00+05:30"
+                "portfolio_report_last_sent": "2024-12-02T09:00:00+05:30",
+                "total_admins": 3,
+                "active_admins": 2,
+                "inactive_admins": 1
             }
         }
+
 
 
 class UserListItemResponse(BaseModel):

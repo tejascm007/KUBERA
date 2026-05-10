@@ -38,7 +38,7 @@ from app.schemas.responses.admin_responses import (
 )
 from app.services.admin_service import AdminService
 from app.services.rate_limit_service import RateLimitService
-from app.core.dependencies import get_current_admin
+from app.core.dependencies import get_current_admin, get_current_super_admin
 from app.core.database import get_db_pool
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -749,3 +749,131 @@ async def get_activity_logs(
             "total_logs": 0,
             "logs": []
         }
+
+
+# ============================================================================
+# SUPER ADMIN — ADMIN MANAGEMENT
+# (Only accessible to admins with is_super_admin = True)
+# ============================================================================
+
+@router.get(
+    "/admins",
+    status_code=status.HTTP_200_OK,
+    summary="List all admins [Super Admin only]",
+    description="Returns all normal (non-super) admin accounts"
+)
+async def list_admins(current_admin: Dict = Depends(get_current_super_admin)):
+    """
+    **List Normal Admins** — Super Admin only
+
+    - Returns all admins where is_super_admin = False
+    - Includes active/inactive status
+    """
+    db_pool = await get_db_pool()
+    from app.db.repositories.admin_repository import AdminRepository
+    admin_repo = AdminRepository(db_pool)
+    admins = await admin_repo.get_all_admins()
+    return {
+        "success": True,
+        "total_admins": len(admins),
+        "admins": admins
+    }
+
+
+@router.put(
+    "/admins/{admin_id}/deactivate",
+    status_code=status.HTTP_200_OK,
+    summary="Deactivate an admin [Super Admin only]",
+    description="Set is_active = False for the given admin"
+)
+async def deactivate_admin(
+    admin_id: str = Path(..., description="Admin UUID"),
+    current_admin: Dict = Depends(get_current_super_admin)
+):
+    """
+    **Deactivate Admin** — Super Admin only
+
+    - Sets is_active = False
+    - Admin will be blocked from logging in
+    - Logs action
+    """
+    db_pool = await get_db_pool()
+    from app.db.repositories.admin_repository import AdminRepository
+    from app.services.email_service import EmailService
+    admin_repo = AdminRepository(db_pool)
+    updated = await admin_repo.update_admin_status(admin_id, False)
+    if not updated:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Admin not found")
+    # Log action
+    import json
+    await admin_repo.log_activity({
+        "admin_id": current_admin["admin_id"],
+        "action": "admin_deactivated",
+        "target_type": "admin",
+        "target_id": admin_id,
+        "new_value": json.dumps({"is_active": False})
+    })
+    # Send deactivation email to the affected admin
+    try:
+        email_service = EmailService(db_pool)
+        await email_service.send_account_deactivated_email(
+            user=updated,  # has full_name and email
+            reason="Your admin account has been deactivated by a super admin."
+        )
+    except Exception as e:
+        logger.warning(f"Failed to send admin deactivation email: {e}")
+    return {
+        "success": True,
+        "message": "Admin deactivated successfully",
+        "admin_id": admin_id,
+        "is_active": False
+    }
+
+
+@router.put(
+    "/admins/{admin_id}/reactivate",
+    status_code=status.HTTP_200_OK,
+    summary="Reactivate an admin [Super Admin only]",
+    description="Set is_active = True for the given admin"
+)
+async def reactivate_admin(
+    admin_id: str = Path(..., description="Admin UUID"),
+    current_admin: Dict = Depends(get_current_super_admin)
+):
+    """
+    **Reactivate Admin** — Super Admin only
+
+    - Sets is_active = True
+    - Admin can log in again
+    - Logs action
+    """
+    db_pool = await get_db_pool()
+    from app.db.repositories.admin_repository import AdminRepository
+    from app.services.email_service import EmailService
+    admin_repo = AdminRepository(db_pool)
+    updated = await admin_repo.update_admin_status(admin_id, True)
+    if not updated:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Admin not found")
+    # Log action
+    import json
+    await admin_repo.log_activity({
+        "admin_id": current_admin["admin_id"],
+        "action": "admin_reactivated",
+        "target_type": "admin",
+        "target_id": admin_id,
+        "new_value": json.dumps({"is_active": True})
+    })
+    # Send reactivation email to the affected admin
+    try:
+        email_service = EmailService(db_pool)
+        await email_service.send_account_reactivated_email(user=updated)
+    except Exception as e:
+        logger.warning(f"Failed to send admin reactivation email: {e}")
+    return {
+        "success": True,
+        "message": "Admin reactivated successfully",
+        "admin_id": admin_id,
+        "is_active": True
+    }

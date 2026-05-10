@@ -167,6 +167,9 @@ class AdminService:
         # System status
         system_status = await self.system_repo.get_system_status()
         
+        # Admin stats (for super admin pie chart)
+        admin_counts = await self.admin_repo.get_admin_counts()
+        
         return {
             "total_users": total_users,
             "active_users": active_users,
@@ -180,7 +183,10 @@ class AdminService:
             "violations_today": violations_today,
             "system_status": system_status['current_status'],
             "portfolio_report_frequency": system_status['portfolio_report_frequency'],
-            "portfolio_report_last_sent": system_status['portfolio_report_last_sent']
+            "portfolio_report_last_sent": system_status['portfolio_report_last_sent'],
+            "total_admins": admin_counts['total_admins'],
+            "active_admins": admin_counts['active_admins'],
+            "inactive_admins": admin_counts['inactive_admins'],
         }
     
     # ========================================================================

@@ -1,638 +1,442 @@
--- -- ============================================================================
--- -- KUBERA STOCK ANALYSIS CHATBOT - DATABASE SCHEMA v1.0
--- -- Initial Schema Creation - 15 Tables
--- -- Database: PostgreSQL 14+
--- -- Timezone: Asia/Kolkata (IST)
--- -- ============================================================================
+-- ============================================================================
+-- KUBERA STOCK ANALYSIS CHATBOT - FULL RESTORE SCRIPT
+-- Run this in your new Supabase project's SQL Editor
+-- ============================================================================
 
--- -- Set timezone
--- SET timezone = 'Asia/Kolkata';
+-- ============================================================================
+-- STEP 1: EXTENSIONS & SEQUENCE
+-- ============================================================================
 
--- -- Enable UUID extension
--- CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- -- ============================================================================
--- -- TABLE 1: USERS
--- -- ============================================================================
--- CREATE TABLE IF NOT EXISTS users (
---     user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
---     email VARCHAR(255) UNIQUE NOT NULL,
---     username VARCHAR(100) UNIQUE NOT NULL,
---     password_hash VARCHAR(255) NOT NULL,
---     full_name VARCHAR(255) NOT NULL,
---     phone VARCHAR(20),
---     date_of_birth DATE,
-    
---     -- Profile preferences
---     investment_style VARCHAR(50),
---     risk_tolerance VARCHAR(50),
---     interested_sectors TEXT[],
-    
---     -- Account status
---     account_status VARCHAR(20) DEFAULT 'active' CHECK (account_status IN ('active', 'deactivated', 'suspended')),
---     email_verified BOOLEAN DEFAULT FALSE,
-    
---     -- Timestamps
---     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     last_login_at TIMESTAMP WITH TIME ZONE
--- );
+CREATE SEQUENCE IF NOT EXISTS schema_version_version_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
 
--- COMMENT ON TABLE users IS 'User accounts and profiles';
--- COMMENT ON COLUMN users.account_status IS 'active, deactivated, suspended';
--- COMMENT ON COLUMN users.investment_style IS 'value, growth, dividend, swing';
--- COMMENT ON COLUMN users.risk_tolerance IS 'low, medium, high';
+-- ============================================================================
+-- STEP 2: TABLES (in dependency order — no FK errors)
+-- ============================================================================
 
--- -- ============================================================================
--- -- TABLE 2: OTPs
--- -- ============================================================================
--- CREATE TABLE IF NOT EXISTS otps (
---     otp_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
---     email VARCHAR(255) NOT NULL,
---     otp_hash VARCHAR(255) NOT NULL,
---     otp_type VARCHAR(50) NOT NULL,
-    
---     -- Verification tracking
---     is_verified BOOLEAN DEFAULT FALSE,
---     attempt_count INTEGER DEFAULT 0,
-    
---     -- Timestamps
---     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     verified_at TIMESTAMP WITH TIME ZONE
--- );
+-- Independent tables first (no foreign keys)
 
--- COMMENT ON TABLE otps IS 'OTP verification for registration, password reset, admin login';
--- COMMENT ON COLUMN otps.otp_type IS 'registration, password_reset, admin_login';
-
--- -- ============================================================================
--- -- TABLE 3: REFRESH TOKENS
--- -- ============================================================================
--- CREATE TABLE IF NOT EXISTS refresh_tokens (
---     token_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
---     user_id UUID NOT NULL,
---     jti VARCHAR(255) UNIQUE NOT NULL,
-    
---     -- Token status
---     revoked BOOLEAN DEFAULT FALSE,
---     revoked_at TIMESTAMP WITH TIME ZONE,
---     revoke_reason VARCHAR(255),
-    
---     -- Timestamps
---     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
---     last_used_at TIMESTAMP WITH TIME ZONE
--- );
-
--- COMMENT ON TABLE refresh_tokens IS 'JWT refresh tokens for session management';
-
--- -- ============================================================================
--- -- TABLE 4: CHATS
--- -- ============================================================================
--- CREATE TABLE IF NOT EXISTS chats (
---     chat_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
---     user_id UUID NOT NULL,
---     chat_name VARCHAR(255) DEFAULT 'New Chat',
-    
---     -- Chat statistics
---     total_prompts INTEGER DEFAULT 0,
-    
---     -- Timestamps
---     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     last_message_at TIMESTAMP WITH TIME ZONE
--- );
-
--- COMMENT ON TABLE chats IS 'User chat sessions';
-
--- -- ============================================================================
--- -- TABLE 5: MESSAGES
--- -- ============================================================================
--- CREATE TABLE IF NOT EXISTS messages (
---     message_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
---     chat_id UUID NOT NULL,
---     user_id UUID NOT NULL,
-    
---     -- Message content
---     user_message TEXT NOT NULL,
---     assistant_response TEXT,
-    
---     -- Metadata
---     tokens_used INTEGER,
---     processing_time_ms INTEGER,
---     mcp_servers_called TEXT[],
---     mcp_tools_used TEXT[],
---     charts_generated INTEGER DEFAULT 0,
---     llm_model VARCHAR(100),
-    
---     -- Timestamps
---     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     response_completed_at TIMESTAMP WITH TIME ZONE
--- );
-
--- COMMENT ON TABLE messages IS 'Chat messages with LLM responses and metadata';
-
--- -- ============================================================================
--- -- TABLE 6: USER PORTFOLIO
--- -- ============================================================================
--- CREATE TABLE IF NOT EXISTS user_portfolio (
---     portfolio_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
---     user_id UUID NOT NULL,
-    
---     -- Stock details
---     stock_symbol VARCHAR(50) NOT NULL,
---     exchange VARCHAR(10) DEFAULT 'NSE',
---     quantity DECIMAL(15, 4) NOT NULL,
---     buy_price DECIMAL(15, 2) NOT NULL,
---     buy_date DATE NOT NULL,
-    
---     -- Current values
---     current_price DECIMAL(15, 2),
---     last_price_update TIMESTAMP WITH TIME ZONE,
-    
---     -- Calculated fields (computed from buy_price and current_price)
---     invested_amount DECIMAL(20, 2) GENERATED ALWAYS AS (quantity * buy_price) STORED,
---     current_value DECIMAL(20, 2) GENERATED ALWAYS AS (quantity * COALESCE(current_price, buy_price)) STORED,
---     gain_loss DECIMAL(20, 2) GENERATED ALWAYS AS (quantity * (COALESCE(current_price, buy_price) - buy_price)) STORED,
---     gain_loss_percent DECIMAL(10, 2) GENERATED ALWAYS AS (
---         CASE 
---             WHEN buy_price > 0 THEN ((COALESCE(current_price, buy_price) - buy_price) / buy_price * 100)
---             ELSE 0 
---         END
---     ) STORED,
-    
---     -- Notes
---     notes TEXT,
-    
---     -- Timestamps
---     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
--- );
-
--- COMMENT ON TABLE user_portfolio IS 'User stock portfolio with holdings';
--- COMMENT ON COLUMN user_portfolio.exchange IS 'NSE or BSE';
-
--- -- ============================================================================
--- -- TABLE 7: RATE LIMIT CONFIG
--- -- ============================================================================
--- CREATE TABLE IF NOT EXISTS rate_limit_config (
---     config_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    
---     -- Global rate limits
---     burst_limit_per_minute INTEGER DEFAULT 10,
---     per_chat_limit INTEGER DEFAULT 50,
---     per_hour_limit INTEGER DEFAULT 150,
---     per_day_limit INTEGER DEFAULT 1000,
-    
---     -- User-specific overrides (JSONB)
---     user_specific_overrides JSONB DEFAULT '{}'::jsonb,
-    
---     -- Whitelisted users (no limits)
---     whitelisted_users UUID[] DEFAULT ARRAY[]::UUID[],
-    
---     -- Audit
---     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     updated_by VARCHAR(255)
--- );
-
--- COMMENT ON TABLE rate_limit_config IS 'Global and user-specific rate limit configuration';
-
--- -- ============================================================================
--- -- TABLE 8: RATE LIMIT TRACKING
--- -- ============================================================================
--- CREATE TABLE IF NOT EXISTS rate_limit_tracking (
---     tracking_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
---     user_id UUID UNIQUE NOT NULL,
-    
---     -- Minute window (burst)
---     prompts_current_minute INTEGER DEFAULT 0,
---     minute_window_start TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
---     -- Hour window
---     prompts_current_hour INTEGER DEFAULT 0,
---     hour_window_start TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
---     -- 24-hour window
---     prompts_current_24h INTEGER DEFAULT 0,
---     window_24h_start TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
---     -- Timestamps
---     last_prompt_at TIMESTAMP WITH TIME ZONE,
---     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
--- );
-
--- COMMENT ON TABLE rate_limit_tracking IS 'Per-user rate limit tracking with sliding windows';
-
--- -- ============================================================================
--- -- TABLE 9: RATE LIMIT VIOLATIONS
--- -- ============================================================================
--- CREATE TABLE IF NOT EXISTS rate_limit_violations (
---     violation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
---     user_id UUID NOT NULL,
---     chat_id UUID,
-    
---     -- Violation details
---     violation_type VARCHAR(50) NOT NULL,
---     limit_value INTEGER NOT NULL,
---     prompts_used INTEGER NOT NULL,
-    
---     -- Action taken
---     action_taken VARCHAR(50) DEFAULT 'blocked',
---     user_message TEXT,
-    
---     -- Request details
---     ip_address INET,
---     user_agent TEXT,
-    
---     -- Timestamp
---     violated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
--- );
-
--- COMMENT ON TABLE rate_limit_violations IS 'Log of rate limit violations';
--- COMMENT ON COLUMN rate_limit_violations.violation_type IS 'burst, per_chat, hourly, daily';
-
--- -- ============================================================================
--- -- TABLE 10: ADMINS
--- -- ============================================================================
--- CREATE TABLE IF NOT EXISTS admins (
---     admin_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
---     email VARCHAR(255) UNIQUE NOT NULL,
---     full_name VARCHAR(255) NOT NULL,
-    
---     -- Admin level
---     is_super_admin BOOLEAN DEFAULT FALSE,
---     is_active BOOLEAN DEFAULT TRUE,
-    
---     -- Timestamps
---     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     last_login_at TIMESTAMP WITH TIME ZONE
--- );
-
--- COMMENT ON TABLE admins IS 'Admin users for system management';
-
--- -- ============================================================================
--- -- TABLE 11: ADMIN ACTIVITY LOGS
--- -- ============================================================================
--- CREATE TABLE IF NOT EXISTS admin_activity_logs (
---     log_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
---     admin_id UUID NOT NULL,
-    
---     -- Action details
---     action VARCHAR(100) NOT NULL,
---     target_type VARCHAR(50),
---     target_id UUID,
-    
---     -- Changes
---     old_value JSONB,
---     new_value JSONB,
-    
---     -- Request details
---     ip_address INET,
---     user_agent TEXT,
-    
---     -- Timestamp
---     performed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
--- );
-
--- COMMENT ON TABLE admin_activity_logs IS 'Audit log of admin actions';
--- COMMENT ON COLUMN admin_activity_logs.action IS 'user_deactivated, rate_limit_updated, system_stopped, etc.';
-
-
--- -- ============================================================================
--- -- TABLE 13: EMAIL PREFERENCES
--- -- ============================================================================
--- CREATE TABLE IF NOT EXISTS email_preferences (
---     preference_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
---     user_id UUID UNIQUE NOT NULL,
-    
---     -- Notification preferences
---     portfolio_reports BOOLEAN DEFAULT TRUE,
---     rate_limit_notifications BOOLEAN DEFAULT TRUE,
---     system_notifications BOOLEAN DEFAULT TRUE,
---     security_alerts BOOLEAN DEFAULT TRUE,
-    
---     -- Timestamps
---     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
--- );
-
--- COMMENT ON TABLE email_preferences IS 'User email notification preferences';
-
--- -- ============================================================================
--- -- TABLE 14: SYSTEM STATUS
--- -- ============================================================================
--- CREATE TABLE IF NOT EXISTS system_status (
---     status_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    
---     -- System state
---     current_status VARCHAR(50) DEFAULT 'running',
-    
---     -- Portfolio report settings
---     portfolio_report_frequency VARCHAR(20) DEFAULT 'disabled',
---     portfolio_report_send_time TIME DEFAULT '09:00:00',
---     portfolio_report_send_day_weekly INTEGER DEFAULT 1,
---     portfolio_report_send_day_monthly INTEGER DEFAULT 1,
---     portfolio_report_last_sent TIMESTAMP WITH TIME ZONE,
---     portfolio_report_next_scheduled TIMESTAMP WITH TIME ZONE,
-    
---     -- Timestamps
---     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
--- );
-
--- COMMENT ON TABLE system_status IS 'Global system status and settings';
--- COMMENT ON COLUMN system_status.current_status IS 'running, stopped, maintenance';
--- COMMENT ON COLUMN system_status.portfolio_report_frequency IS 'disabled, daily, weekly, monthly';
-
--- -- ============================================================================
--- -- INSERT DEFAULT SYSTEM STATUS ROW
--- -- ============================================================================
--- INSERT INTO system_status (current_status) 
--- VALUES ('running')
--- ON CONFLICT DO NOTHING;
-
--- -- ============================================================================
--- -- INSERT DEFAULT RATE LIMIT CONFIG
--- -- ============================================================================
--- INSERT INTO rate_limit_config (
---     burst_limit_per_minute,
---     per_chat_limit,
---     per_hour_limit,
---     per_day_limit
--- ) VALUES (10, 50, 150, 1000)
--- ON CONFLICT DO NOTHING;
-
--- -- ============================================================================
--- -- SCHEMA VERSION TRACKING
--- -- ============================================================================
--- CREATE TABLE IF NOT EXISTS schema_version (
---     version_id SERIAL PRIMARY KEY,
---     version VARCHAR(50) NOT NULL,
---     description TEXT,
---     applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
--- );
-
-
--- -- Email Log Table
--- CREATE TABLE IF NOT EXISTS email_log (
---     log_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
---     recipient_email VARCHAR(255) NOT NULL,
---     email_type VARCHAR(100) NOT NULL,
---     subject VARCHAR(500),
---     status VARCHAR(50) DEFAULT 'pending',
---     error_message TEXT,
---     sent_at TIMESTAMP WITH TIME ZONE,
---     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
--- );
-
--- -- Email Preferences Table
--- CREATE TABLE IF NOT EXISTS email_preferences (
---     preference_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
---     user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
---     rate_limit_notifications BOOLEAN DEFAULT TRUE,
---     portfolio_reports BOOLEAN DEFAULT TRUE,
---     system_notifications BOOLEAN DEFAULT TRUE,
---     security_alerts BOOLEAN DEFAULT TRUE,
---     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---     UNIQUE(user_id)
--- );
-
--- -- Indexes
--- CREATE INDEX idx_email_log_recipient ON email_log(recipient_email);
--- CREATE INDEX idx_email_log_type ON email_log(email_type);
--- CREATE INDEX idx_email_log_status ON email_log(status);
--- CREATE INDEX idx_email_preferences_user ON email_preferences(user_id);
-
-
--- INSERT INTO schema_version (version, description) 
--- VALUES ('v1.0', 'Initial schema - 15 tables created');
-
--- -- ============================================================================
--- -- COMPLETION MESSAGE
--- -- ============================================================================
--- DO $$
--- BEGIN
---     RAISE NOTICE ' SCHEMA v1.0 CREATED SUCCESSFULLY';
---     RAISE NOTICE ' 15 tables created';
---     RAISE NOTICE ' Default data inserted';
--- END $$;
-
-
--- ALTER TABLE refresh_tokens 
--- ADD COLUMN IF NOT EXISTS revoked_reason VARCHAR(255);
-
-
--- WARNING: This schema is for context only and is not meant to be run.
--- Table order and constraints may not be valid for execution.
-
-CREATE TABLE public.admin_activity_logs (
-  log_id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  admin_id uuid NOT NULL,
-  action character varying NOT NULL,
-  target_type character varying,
-  target_id uuid,
-  old_value jsonb,
-  new_value jsonb,
-  ip_address inet,
-  user_agent text,
-  performed_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT admin_activity_logs_pkey PRIMARY KEY (log_id),
-  CONSTRAINT fk_admin_logs_admin FOREIGN KEY (admin_id) REFERENCES public.admins(admin_id)
-);
-CREATE TABLE public.admins (
-  admin_id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  email character varying NOT NULL UNIQUE,
-  full_name character varying NOT NULL,
-  is_super_admin boolean DEFAULT false,
-  is_active boolean DEFAULT true,
-  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  last_login_at timestamp with time zone,
-  CONSTRAINT admins_pkey PRIMARY KEY (admin_id)
-);
-CREATE TABLE public.chats (
-  chat_id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  user_id uuid NOT NULL,
-  chat_name character varying DEFAULT 'New Chat'::character varying,
-  total_prompts integer DEFAULT 0 CHECK (total_prompts >= 0),
-  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  last_message_at timestamp with time zone,
-  CONSTRAINT chats_pkey PRIMARY KEY (chat_id),
-  CONSTRAINT fk_chats_user FOREIGN KEY (user_id) REFERENCES public.users(user_id)
-);
-CREATE TABLE public.email_log (
-  log_id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  recipient_email character varying NOT NULL,
-  email_type character varying NOT NULL,
-  subject character varying,
-  send_status character varying DEFAULT 'pending'::character varying,
-  retry_count integer DEFAULT 0,
-  last_error text,
-  sent_at timestamp with time zone,
-  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT email_log_pkey PRIMARY KEY (log_id)
-);
-CREATE TABLE public.email_preferences (
-  preference_id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  user_id uuid NOT NULL UNIQUE,
-  portfolio_reports boolean DEFAULT true,
-  security_alerts boolean DEFAULT true,
-  rate_limit_notifications boolean DEFAULT true,
-  system_notifications boolean DEFAULT true,
-  promotional_emails boolean DEFAULT false,
-  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT email_preferences_pkey PRIMARY KEY (preference_id),
-  CONSTRAINT email_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id)
-);
-CREATE TABLE public.messages (
-  message_id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  chat_id uuid NOT NULL,
-  user_id uuid NOT NULL,
-  user_message text NOT NULL,
-  assistant_response text,
-  tokens_used integer CHECK (tokens_used IS NULL OR tokens_used >= 0),
-  processing_time_ms integer CHECK (processing_time_ms IS NULL OR processing_time_ms >= 0),
-  mcp_servers_called ARRAY,
-  mcp_tools_used ARRAY,
-  charts_generated integer DEFAULT 0 CHECK (charts_generated >= 0),
-  llm_model character varying,
-  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  response_completed_at timestamp with time zone,
-  CONSTRAINT messages_pkey PRIMARY KEY (message_id),
-  CONSTRAINT fk_messages_chat FOREIGN KEY (chat_id) REFERENCES public.chats(chat_id),
-  CONSTRAINT fk_messages_user FOREIGN KEY (user_id) REFERENCES public.users(user_id)
-);
-CREATE TABLE public.otps (
-  otp_id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  email character varying NOT NULL,
-  otp_hash character varying NOT NULL,
-  otp_type character varying NOT NULL,
-  is_verified boolean DEFAULT false,
-  attempt_count integer DEFAULT 0 CHECK (attempt_count >= 0 AND attempt_count <= 10),
-  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  verified_at timestamp with time zone,
-  expires_at timestamp with time zone,
-  CONSTRAINT otps_pkey PRIMARY KEY (otp_id)
-);
-CREATE TABLE public.rate_limit_config (
-  config_id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  burst_limit_per_minute integer DEFAULT 10 CHECK (burst_limit_per_minute > 0),
-  per_chat_limit integer DEFAULT 50 CHECK (per_chat_limit > 0),
-  per_hour_limit integer DEFAULT 150 CHECK (per_hour_limit > 0),
-  per_day_limit integer DEFAULT 1000 CHECK (per_day_limit > 0),
-  user_specific_overrides jsonb DEFAULT '{}'::jsonb,
-  whitelisted_users ARRAY DEFAULT ARRAY[]::uuid[],
-  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  updated_by character varying,
-  CONSTRAINT rate_limit_config_pkey PRIMARY KEY (config_id)
-);
-CREATE TABLE public.rate_limit_tracking (
-  tracking_id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  user_id uuid NOT NULL UNIQUE,
-  prompts_current_minute integer DEFAULT 0 CHECK (prompts_current_minute >= 0),
-  minute_window_start timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  prompts_current_hour integer DEFAULT 0 CHECK (prompts_current_hour >= 0),
-  hour_window_start timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  prompts_current_24h integer DEFAULT 0 CHECK (prompts_current_24h >= 0),
-  window_24h_start timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  last_prompt_at timestamp with time zone,
-  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT rate_limit_tracking_pkey PRIMARY KEY (tracking_id),
-  CONSTRAINT fk_rate_tracking_user FOREIGN KEY (user_id) REFERENCES public.users(user_id)
-);
-CREATE TABLE public.rate_limit_violations (
-  violation_id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  user_id uuid NOT NULL,
-  chat_id uuid,
-  violation_type character varying NOT NULL,
-  limit_value integer NOT NULL CHECK (limit_value > 0),
-  prompts_used integer NOT NULL CHECK (prompts_used >= 0),
-  action_taken character varying DEFAULT 'blocked'::character varying,
-  user_message text,
-  ip_address inet,
-  user_agent text,
-  violated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT rate_limit_violations_pkey PRIMARY KEY (violation_id),
-  CONSTRAINT fk_rate_violations_user FOREIGN KEY (user_id) REFERENCES public.users(user_id),
-  CONSTRAINT fk_rate_violations_chat FOREIGN KEY (chat_id) REFERENCES public.chats(chat_id)
-);
-CREATE TABLE public.refresh_tokens (
-  token_id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  user_id uuid NOT NULL,
-  jti character varying NOT NULL UNIQUE,
-  revoked boolean DEFAULT false,
-  revoked_at timestamp with time zone,
-  revoke_reason character varying,
-  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  expires_at timestamp with time zone NOT NULL,
-  last_used_at timestamp with time zone,
-  revoked_reason character varying,
-  CONSTRAINT refresh_tokens_pkey PRIMARY KEY (token_id),
-  CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES public.users(user_id)
-);
-CREATE TABLE public.schema_version (
-  version_id integer NOT NULL DEFAULT nextval('schema_version_version_id_seq'::regclass),
-  version character varying NOT NULL,
-  description text,
-  applied_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT schema_version_pkey PRIMARY KEY (version_id)
-);
-CREATE TABLE public.system_status (
-  status_id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  current_status character varying DEFAULT 'running'::character varying,
-  portfolio_report_frequency character varying DEFAULT 'disabled'::character varying,
-  portfolio_report_send_time time without time zone DEFAULT '09:00:00'::time without time zone,
-  portfolio_report_send_day_weekly integer DEFAULT 1 CHECK (portfolio_report_send_day_weekly >= 0 AND portfolio_report_send_day_weekly <= 6),
-  portfolio_report_send_day_monthly integer DEFAULT 1 CHECK (portfolio_report_send_day_monthly >= 1 AND portfolio_report_send_day_monthly <= 31),
-  portfolio_report_last_sent timestamp with time zone,
-  portfolio_report_next_scheduled timestamp with time zone,
-  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT system_status_pkey PRIMARY KEY (status_id)
-);
-CREATE TABLE public.user_portfolio (
-  portfolio_id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  user_id uuid NOT NULL,
-  stock_symbol character varying NOT NULL,
-  exchange character varying DEFAULT 'NSE'::character varying,
-  quantity numeric NOT NULL CHECK (quantity > 0::numeric),
-  buy_price numeric NOT NULL CHECK (buy_price > 0::numeric),
-  buy_date date NOT NULL CHECK (buy_date <= CURRENT_DATE),
-  current_price numeric CHECK (current_price IS NULL OR current_price > 0::numeric),
-  last_price_update timestamp with time zone,
-  invested_amount numeric DEFAULT (quantity * buy_price),
-  current_value numeric,
-  gain_loss numeric,
-  gain_loss_percent numeric,
-  notes text,
-  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  investment_type character varying,
-  CONSTRAINT user_portfolio_pkey PRIMARY KEY (portfolio_id),
-  CONSTRAINT fk_portfolio_user FOREIGN KEY (user_id) REFERENCES public.users(user_id)
-);
-CREATE TABLE public.users (
-  user_id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  email character varying NOT NULL UNIQUE CHECK (email::text ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'::text),
-  username character varying NOT NULL UNIQUE CHECK (length(username::text) >= 3 AND length(username::text) <= 100),
-  password_hash character varying NOT NULL,
-  full_name character varying NOT NULL,
-  phone character varying CHECK (phone IS NULL OR phone::text ~* '^\+?[0-9]{10,15}$'::text),
-  date_of_birth date,
-  investment_style character varying,
-  risk_tolerance character varying,
-  interested_sectors ARRAY,
-  account_status character varying DEFAULT 'active'::character varying CHECK (account_status::text = ANY (ARRAY['active'::character varying, 'deactivated'::character varying, 'suspended'::character varying]::text[])),
-  email_verified boolean DEFAULT false,
-  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  last_login_at timestamp with time zone,
+CREATE TABLE IF NOT EXISTS public.users (
+  user_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  email VARCHAR(255) NOT NULL UNIQUE CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
+  username VARCHAR(100) NOT NULL UNIQUE CHECK (LENGTH(username) >= 3 AND LENGTH(username) <= 100),
+  password_hash VARCHAR(255) NOT NULL,
+  full_name VARCHAR(255) NOT NULL,
+  phone VARCHAR(20) CHECK (phone IS NULL OR phone ~* '^\+?[0-9]{10,15}$'),
+  date_of_birth DATE,
+  investment_style VARCHAR(50),
+  risk_tolerance VARCHAR(50),
+  interested_sectors TEXT[],
+  account_status VARCHAR(20) DEFAULT 'active' CHECK (account_status = ANY (ARRAY['active', 'deactivated', 'suspended'])),
+  email_verified BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  last_login_at TIMESTAMP WITH TIME ZONE,
   CONSTRAINT users_pkey PRIMARY KEY (user_id)
 );
+
+CREATE TABLE IF NOT EXISTS public.admins (
+  admin_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  email VARCHAR(255) NOT NULL UNIQUE,
+  full_name VARCHAR(255) NOT NULL,
+  is_super_admin BOOLEAN DEFAULT FALSE,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  last_login_at TIMESTAMP WITH TIME ZONE,
+  CONSTRAINT admins_pkey PRIMARY KEY (admin_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.otps (
+  otp_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  email VARCHAR(255) NOT NULL,
+  otp_hash VARCHAR(255) NOT NULL,
+  otp_type VARCHAR(50) NOT NULL,
+  is_verified BOOLEAN DEFAULT FALSE,
+  attempt_count INTEGER DEFAULT 0 CHECK (attempt_count >= 0 AND attempt_count <= 10),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  verified_at TIMESTAMP WITH TIME ZONE,
+  expires_at TIMESTAMP WITH TIME ZONE,
+  CONSTRAINT otps_pkey PRIMARY KEY (otp_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.email_log (
+  log_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  recipient_email VARCHAR(255) NOT NULL,
+  email_type VARCHAR(100) NOT NULL,
+  subject VARCHAR(500),
+  send_status VARCHAR(50) DEFAULT 'pending',
+  retry_count INTEGER DEFAULT 0,
+  last_error TEXT,
+  sent_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT email_log_pkey PRIMARY KEY (log_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.rate_limit_config (
+  config_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  burst_limit_per_minute INTEGER DEFAULT 10 CHECK (burst_limit_per_minute > 0),
+  per_chat_limit INTEGER DEFAULT 50 CHECK (per_chat_limit > 0),
+  per_hour_limit INTEGER DEFAULT 150 CHECK (per_hour_limit > 0),
+  per_day_limit INTEGER DEFAULT 1000 CHECK (per_day_limit > 0),
+  user_specific_overrides JSONB DEFAULT '{}'::jsonb,
+  whitelisted_users UUID[] DEFAULT ARRAY[]::UUID[],
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(255),
+  CONSTRAINT rate_limit_config_pkey PRIMARY KEY (config_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.system_status (
+  status_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  current_status VARCHAR(50) DEFAULT 'running',
+  portfolio_report_frequency VARCHAR(20) DEFAULT 'disabled',
+  portfolio_report_send_time TIME DEFAULT '09:00:00',
+  portfolio_report_send_day_weekly INTEGER DEFAULT 1 CHECK (portfolio_report_send_day_weekly >= 0 AND portfolio_report_send_day_weekly <= 6),
+  portfolio_report_send_day_monthly INTEGER DEFAULT 1 CHECK (portfolio_report_send_day_monthly >= 1 AND portfolio_report_send_day_monthly <= 31),
+  portfolio_report_last_sent TIMESTAMP WITH TIME ZONE,
+  portfolio_report_next_scheduled TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT system_status_pkey PRIMARY KEY (status_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.schema_version (
+  version_id INTEGER NOT NULL DEFAULT nextval('schema_version_version_id_seq'::regclass),
+  version VARCHAR(50) NOT NULL,
+  description TEXT,
+  applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT schema_version_pkey PRIMARY KEY (version_id)
+);
+
+-- Tables that depend on users
+
+CREATE TABLE IF NOT EXISTS public.refresh_tokens (
+  token_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL,
+  jti VARCHAR(255) NOT NULL UNIQUE,
+  revoked BOOLEAN DEFAULT FALSE,
+  revoked_at TIMESTAMP WITH TIME ZONE,
+  revoke_reason VARCHAR(255),
+  revoked_reason VARCHAR(255),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  last_used_at TIMESTAMP WITH TIME ZONE,
+  CONSTRAINT refresh_tokens_pkey PRIMARY KEY (token_id),
+  CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.chats (
+  chat_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL,
+  chat_name VARCHAR(255) DEFAULT 'New Chat',
+  total_prompts INTEGER DEFAULT 0 CHECK (total_prompts >= 0),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  last_message_at TIMESTAMP WITH TIME ZONE,
+  CONSTRAINT chats_pkey PRIMARY KEY (chat_id),
+  CONSTRAINT fk_chats_user FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.email_preferences (
+  preference_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL UNIQUE,
+  portfolio_reports BOOLEAN DEFAULT TRUE,
+  security_alerts BOOLEAN DEFAULT TRUE,
+  rate_limit_notifications BOOLEAN DEFAULT TRUE,
+  system_notifications BOOLEAN DEFAULT TRUE,
+  promotional_emails BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT email_preferences_pkey PRIMARY KEY (preference_id),
+  CONSTRAINT fk_email_prefs_user FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.rate_limit_tracking (
+  tracking_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL UNIQUE,
+  prompts_current_minute INTEGER DEFAULT 0 CHECK (prompts_current_minute >= 0),
+  minute_window_start TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  prompts_current_hour INTEGER DEFAULT 0 CHECK (prompts_current_hour >= 0),
+  hour_window_start TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  prompts_current_24h INTEGER DEFAULT 0 CHECK (prompts_current_24h >= 0),
+  window_24h_start TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  last_prompt_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT rate_limit_tracking_pkey PRIMARY KEY (tracking_id),
+  CONSTRAINT fk_rate_tracking_user FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.user_portfolio (
+  portfolio_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL,
+  stock_symbol VARCHAR(50) NOT NULL,
+  exchange VARCHAR(10) DEFAULT 'NSE',
+  quantity DECIMAL(15,4) NOT NULL CHECK (quantity > 0),
+  buy_price DECIMAL(15,2) NOT NULL CHECK (buy_price > 0),
+  buy_date DATE NOT NULL CHECK (buy_date <= CURRENT_DATE),
+  current_price DECIMAL(15,2) CHECK (current_price IS NULL OR current_price > 0),
+  last_price_update TIMESTAMP WITH TIME ZONE,
+  invested_amount DECIMAL(20,2),
+  current_value DECIMAL(20,2),
+  gain_loss DECIMAL(20,2),
+  gain_loss_percent DECIMAL(10,2),
+  notes TEXT,
+  investment_type VARCHAR(50),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT user_portfolio_pkey PRIMARY KEY (portfolio_id),
+  CONSTRAINT fk_portfolio_user FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE
+);
+
+-- Tables that depend on both users and chats
+
+CREATE TABLE IF NOT EXISTS public.messages (
+  message_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  chat_id UUID NOT NULL,
+  user_id UUID NOT NULL,
+  user_message TEXT NOT NULL,
+  assistant_response TEXT,
+  tokens_used INTEGER CHECK (tokens_used IS NULL OR tokens_used >= 0),
+  processing_time_ms INTEGER CHECK (processing_time_ms IS NULL OR processing_time_ms >= 0),
+  mcp_servers_called TEXT[],
+  mcp_tools_used TEXT[],
+  charts_generated INTEGER DEFAULT 0 CHECK (charts_generated >= 0),
+  llm_model VARCHAR(100),
+  chart_url TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  response_completed_at TIMESTAMP WITH TIME ZONE,
+  CONSTRAINT messages_pkey PRIMARY KEY (message_id),
+  CONSTRAINT fk_messages_chat FOREIGN KEY (chat_id) REFERENCES public.chats(chat_id) ON DELETE CASCADE,
+  CONSTRAINT fk_messages_user FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.rate_limit_violations (
+  violation_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL,
+  chat_id UUID,
+  violation_type VARCHAR(50) NOT NULL,
+  limit_value INTEGER NOT NULL CHECK (limit_value > 0),
+  prompts_used INTEGER NOT NULL CHECK (prompts_used >= 0),
+  action_taken VARCHAR(50) DEFAULT 'blocked',
+  user_message TEXT,
+  ip_address INET,
+  user_agent TEXT,
+  violated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT rate_limit_violations_pkey PRIMARY KEY (violation_id),
+  CONSTRAINT fk_rate_violations_user FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE,
+  CONSTRAINT fk_rate_violations_chat FOREIGN KEY (chat_id) REFERENCES public.chats(chat_id) ON DELETE SET NULL
+);
+
+-- Table that depends on admins
+
+CREATE TABLE IF NOT EXISTS public.admin_activity_logs (
+  log_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+  admin_id UUID NOT NULL,
+  action VARCHAR(100) NOT NULL,
+  target_type VARCHAR(50),
+  target_id UUID,
+  old_value JSONB,
+  new_value JSONB,
+  ip_address INET,
+  user_agent TEXT,
+  performed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT admin_activity_logs_pkey PRIMARY KEY (log_id),
+  CONSTRAINT fk_admin_logs_admin FOREIGN KEY (admin_id) REFERENCES public.admins(admin_id) ON DELETE CASCADE
+);
+
+-- ============================================================================
+-- STEP 3: INDEXES (v2_indexes.sql)
+-- ============================================================================
+
+SET timezone = 'Asia/Kolkata';
+
+-- Users
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_account_status ON users(account_status);
+CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_users_last_login ON users(last_login_at DESC);
+
+-- OTPs
+CREATE INDEX IF NOT EXISTS idx_otps_email ON otps(email);
+CREATE INDEX IF NOT EXISTS idx_otps_email_type ON otps(email, otp_type);
+CREATE INDEX IF NOT EXISTS idx_otps_created_at ON otps(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_otps_is_verified ON otps(is_verified);
+
+-- Refresh Tokens
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_jti ON refresh_tokens(jti);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_revoked ON refresh_tokens(revoked);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
+
+-- Chats
+CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats(user_id);
+CREATE INDEX IF NOT EXISTS idx_chats_created_at ON chats(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chats_last_message ON chats(last_message_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chats_user_updated ON chats(user_id, updated_at DESC);
+
+-- Messages
+CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
+CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id);
+CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_chat_created ON messages(chat_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_response_completed ON messages(response_completed_at);
+CREATE INDEX IF NOT EXISTS idx_messages_mcp_servers ON messages USING GIN(mcp_servers_called);
+CREATE INDEX IF NOT EXISTS idx_messages_mcp_tools ON messages USING GIN(mcp_tools_used);
+
+-- User Portfolio
+CREATE INDEX IF NOT EXISTS idx_portfolio_user_id ON user_portfolio(user_id);
+CREATE INDEX IF NOT EXISTS idx_portfolio_stock_symbol ON user_portfolio(stock_symbol);
+CREATE INDEX IF NOT EXISTS idx_portfolio_user_stock ON user_portfolio(user_id, stock_symbol);
+CREATE INDEX IF NOT EXISTS idx_portfolio_exchange ON user_portfolio(exchange);
+CREATE INDEX IF NOT EXISTS idx_portfolio_buy_date ON user_portfolio(buy_date DESC);
+CREATE INDEX IF NOT EXISTS idx_portfolio_last_price_update ON user_portfolio(last_price_update);
+
+-- Rate Limit Tracking
+CREATE INDEX IF NOT EXISTS idx_rate_limit_tracking_user_id ON rate_limit_tracking(user_id);
+CREATE INDEX IF NOT EXISTS idx_rate_limit_tracking_last_prompt ON rate_limit_tracking(last_prompt_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rate_limit_tracking_minute_window ON rate_limit_tracking(minute_window_start);
+CREATE INDEX IF NOT EXISTS idx_rate_limit_tracking_hour_window ON rate_limit_tracking(hour_window_start);
+CREATE INDEX IF NOT EXISTS idx_rate_limit_tracking_24h_window ON rate_limit_tracking(window_24h_start);
+
+-- Rate Limit Violations
+CREATE INDEX IF NOT EXISTS idx_rate_violations_user_id ON rate_limit_violations(user_id);
+CREATE INDEX IF NOT EXISTS idx_rate_violations_chat_id ON rate_limit_violations(chat_id);
+CREATE INDEX IF NOT EXISTS idx_rate_violations_type ON rate_limit_violations(violation_type);
+CREATE INDEX IF NOT EXISTS idx_rate_violations_violated_at ON rate_limit_violations(violated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rate_violations_user_violated ON rate_limit_violations(user_id, violated_at DESC);
+
+-- Admins
+CREATE INDEX IF NOT EXISTS idx_admins_email ON admins(email);
+CREATE INDEX IF NOT EXISTS idx_admins_is_active ON admins(is_active);
+CREATE INDEX IF NOT EXISTS idx_admins_is_super_admin ON admins(is_super_admin);
+CREATE INDEX IF NOT EXISTS idx_admins_last_login ON admins(last_login_at DESC);
+
+-- Admin Activity Logs
+CREATE INDEX IF NOT EXISTS idx_admin_logs_admin_id ON admin_activity_logs(admin_id);
+CREATE INDEX IF NOT EXISTS idx_admin_logs_action ON admin_activity_logs(action);
+CREATE INDEX IF NOT EXISTS idx_admin_logs_target_type ON admin_activity_logs(target_type);
+CREATE INDEX IF NOT EXISTS idx_admin_logs_target_id ON admin_activity_logs(target_id);
+CREATE INDEX IF NOT EXISTS idx_admin_logs_performed_at ON admin_activity_logs(performed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_logs_admin_performed ON admin_activity_logs(admin_id, performed_at DESC);
+
+-- Email Logs
+CREATE INDEX IF NOT EXISTS idx_email_logs_recipient ON email_log(recipient_email);
+CREATE INDEX IF NOT EXISTS idx_email_logs_type ON email_log(email_type);
+CREATE INDEX IF NOT EXISTS idx_email_logs_sent_at ON email_log(sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_email_logs_created_at ON email_log(created_at DESC);
+
+-- Email Preferences
+CREATE INDEX IF NOT EXISTS idx_email_prefs_user_id ON email_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_prefs_portfolio_reports ON email_preferences(portfolio_reports) WHERE portfolio_reports = TRUE;
+CREATE INDEX IF NOT EXISTS idx_email_prefs_system_notif ON email_preferences(system_notifications) WHERE system_notifications = TRUE;
+
+-- Composite Indexes
+CREATE INDEX IF NOT EXISTS idx_chats_user_total_prompts ON chats(user_id, total_prompts DESC);
+CREATE INDEX IF NOT EXISTS idx_portfolio_user_gain ON user_portfolio(user_id, gain_loss DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_user_tokens ON messages(user_id, tokens_used);
+CREATE INDEX IF NOT EXISTS idx_violations_type_user ON rate_limit_violations(violation_type, user_id, violated_at DESC);
+
+-- Unique index from v3
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_user_stock ON user_portfolio(user_id, stock_symbol);
+
+-- ============================================================================
+-- STEP 4: TRIGGERS (from v3_constraints.sql)
+-- ============================================================================
+
+-- Function: auto-update updated_at column
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_users_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trigger_chats_updated_at
+    BEFORE UPDATE ON chats
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trigger_portfolio_updated_at
+    BEFORE UPDATE ON user_portfolio
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trigger_rate_config_updated_at
+    BEFORE UPDATE ON rate_limit_config
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trigger_rate_tracking_updated_at
+    BEFORE UPDATE ON rate_limit_tracking
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trigger_admins_updated_at
+    BEFORE UPDATE ON admins
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trigger_email_prefs_updated_at
+    BEFORE UPDATE ON email_preferences
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trigger_system_status_updated_at
+    BEFORE UPDATE ON system_status
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Function: auto-update chat stats on new message
+CREATE OR REPLACE FUNCTION update_chat_statistics()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE chats
+    SET 
+        total_prompts = total_prompts + 1,
+        last_message_at = NEW.created_at,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE chat_id = NEW.chat_id;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_messages_update_chat_stats
+    AFTER INSERT ON messages
+    FOR EACH ROW EXECUTE FUNCTION update_chat_statistics();
+
+-- ============================================================================
+-- STEP 5: DEFAULT DATA
+-- ============================================================================
+
+INSERT INTO public.system_status (current_status)
+VALUES ('running')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.rate_limit_config (
+    burst_limit_per_minute,
+    per_chat_limit,
+    per_hour_limit,
+    per_day_limit
+) VALUES (10, 50, 150, 1000)
+ON CONFLICT DO NOTHING;
+
+-- ============================================================================
+-- STEP 6: SCHEMA VERSION LOG
+-- ============================================================================
+
+INSERT INTO public.schema_version (version, description) VALUES
+    ('v1.0', 'Initial schema - 15 tables created'),
+    ('v2.0', 'Performance indexes added'),
+    ('v2.1', 'chart_url column added to messages'),
+    ('v3.0', 'Triggers and constraints added');
+
+-- ============================================================================
+-- DONE! 15 tables, 60+ indexes, triggers all set.
+-- ============================================================================

@@ -78,7 +78,8 @@ class MessageResponse(BaseModel):
     mcp_servers_called: Optional[List[str]] = None
     mcp_tools_used: Optional[List[str]] = None
     charts_generated: int = 0
-    processing_time_ms: Optional[int] = None
+    chart_url: Optional[str] = None  # Chart URL(s) — may be a JSON array string for multiple charts
+    processing_time_ms: Optional[int] = None 
     llm_model: Optional[str] = None
     created_at: datetime
     

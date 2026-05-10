@@ -11,7 +11,7 @@ from datetime import datetime
 from fastapi import WebSocket
 from app.api.websockets.message_manager import MessageManager
 from app.api.websockets.llm_service import LLMService
-from app.models.rate_limit import RateLimiter
+from app.services.rate_limit_service import RateLimitService
 from app.websocket.response_streamer import ResponseStreamer
 
 logger = logging.getLogger(__name__)
@@ -49,8 +49,8 @@ class ChatWebSocketHandler:
         
         # Initialize services
         self.message_manager = MessageManager(db_pool, user_id, chat_id)
-        self.llm_service = LLMService(db_pool)  # Pass db_pool for portfolio access
-        self.rate_limiter = RateLimiter(db_pool, user_id)
+        self.llm_service = LLMService(db_pool)
+        self.rate_limit_service = RateLimitService(db_pool)
         
         # Initialize response streamer for cleaner streaming
         self.streamer = ResponseStreamer(websocket)
@@ -109,12 +109,20 @@ class ChatWebSocketHandler:
                 "timestamp": datetime.utcnow().isoformat()
             })
             
-            # Send current rate limit info using streamer
-            rate_info = await self.rate_limiter.get_current_usage()
-            await self.streamer.stream_rate_limit_info(
-                current_usage=rate_info["current"],
-                limits=rate_info["limits"]
-            )
+            # Send current rate limit info
+            try:
+                config = await self.rate_limit_service.get_rate_limit_config()
+                await self.websocket.send_json({
+                    "type": "rate_limit_info",
+                    "limits": {
+                        "burst":    config.get("burst_limit_per_minute", 10),
+                        "per_chat": config.get("per_chat_limit", 50),
+                        "hourly":   config.get("per_hour_limit", 150),
+                        "daily":    config.get("per_day_limit", 1000),
+                    }
+                })
+            except Exception as e:
+                logger.warning(f"Could not send rate limit info: {e}")
             
         except Exception as e:
             logger.error(f"Error accepting WebSocket: {str(e)}")
@@ -204,21 +212,29 @@ class ChatWebSocketHandler:
         
         logger.info(f"Chat message from {self.user_id}: {user_message[:100]}")
         
-        #   CHECK RATE LIMITS
-        rate_check = await self.rate_limiter.check_limits()
-        
-        if not rate_check["allowed"]:
-            await self.streamer.stream_rate_limit_exceeded(
-                error=rate_check["error"],
-                details=rate_check["details"]
+        # ========================================================================
+        # CHECK RATE LIMITS via RateLimitService (all 4: burst/per_chat/hourly/daily)
+        # ========================================================================
+        try:
+            await self.rate_limit_service.check_rate_limits(
+                user_id=self.user_id,
+                chat_id=self.chat_id,
+                user_message=user_message,
             )
-            logger.warning(f"Rate limit exceeded for user {self.user_id}")
-            
-            # Send email notification in background (non-blocking)
+        except Exception as rate_exc:
+            # Any rate limit exception (Burst/PerChat/Hourly/Daily) blocks the prompt
+            error_msg = str(rate_exc)
+            violation_type = type(rate_exc).__name__.replace('RateLimitException', '').lower()
+            await self.streamer.stream_rate_limit_exceeded(
+                error=error_msg,
+                details={"violation_type": violation_type}
+            )
+            logger.warning(f"Rate limit [{violation_type}] exceeded for user {self.user_id}")
+            # Background email (non-blocking)
             import asyncio
             asyncio.create_task(self._send_rate_limit_email(
-                violation_type=rate_check["details"].get("violation_type", "unknown"),
-                limit=rate_check["details"].get("limit", 0)
+                violation_type=violation_type,
+                limit=0
             ))
             return
         
@@ -248,8 +264,10 @@ class ChatWebSocketHandler:
             response_text = ""
             tools_used = []
             tokens_used = 0
-            chart_url = None  # Track chart URL from visualization tools
-            chart_html = None  # Track chart HTML for direct rendering
+            chart_url = None    # Legacy single - first chart URL (for DB)
+            chart_html = None   # Legacy single - first chart HTML
+            chart_urls = []     # All chart URLs
+            chart_htmls = []    # All chart HTMLs
             processing_start = datetime.utcnow()
             
             async for chunk in self.llm_service.stream_response(
@@ -282,11 +300,11 @@ class ChatWebSocketHandler:
                 elif chunk["type"] == "message_complete":
                     tokens_used = chunk["metadata"].get("tokens_used", 0)
                     tools_used = chunk["metadata"].get("tools_used", [])
-                    chart_url = chunk["metadata"].get("chart_url")
-                    chart_html = chunk["metadata"].get("chart_html")  # Chart HTML for direct rendering
-                    # Debug: Log chart data received
-                    logger.info(f"Message complete - chart_url: {chart_url[:50] if chart_url else 'None'}...")
-                    logger.info(f"Message complete - chart_html size: {len(chart_html) if chart_html else 0} bytes")
+                    chart_url = chunk["metadata"].get("chart_url")         # first URL (for DB)
+                    chart_html = chunk["metadata"].get("chart_html")       # first HTML
+                    chart_urls = chunk["metadata"].get("chart_urls", [])   # all URLs
+                    chart_htmls = chunk["metadata"].get("chart_htmls", []) # all HTMLs
+                    logger.info(f"Message complete - {len(chart_urls)} chart(s) received")
             
             #   SAVE ASSISTANT RESPONSE
             processing_time = (datetime.utcnow() - processing_start).total_seconds() * 1000
@@ -299,7 +317,7 @@ class ChatWebSocketHandler:
                     tokens_used=tokens_used,
                     processing_time_ms=int(processing_time),
                     tools_used=tools_used,
-                    chart_url=chart_url  # Save chart URL for reload
+                    chart_urls=chart_urls if chart_urls else None
                 )
             except Exception as e:
                 logger.error(f"Error saving response: {str(e)}")
@@ -311,8 +329,10 @@ class ChatWebSocketHandler:
                     "tokens_used": tokens_used,
                     "tools_used": tools_used,
                     "processing_time_ms": int(processing_time),
-                    "chart_url": chart_url,  # Include chart URL for frontend
-                    "chart_html": chart_html  # Include chart HTML for direct rendering
+                    "chart_url": chart_url,
+                    "chart_html": chart_html,
+                    "chart_urls": chart_urls,
+                    "chart_htmls": chart_htmls,
                 }
             )
             

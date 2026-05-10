@@ -63,7 +63,7 @@ def upload_chart_to_supabase(html_content: str, stock_symbol: str, chart_type: s
         logger.info(f"Uploading chart: {filename} (size: {len(html_content)} bytes)")
         
         # Upload to Supabase Storage
-        response = supabase.storage.from_("charts").upload(
+        response = supabase.storage.from_("Kubera").upload(
             path=filename,
             file=html_content.encode('utf-8'),
             file_options={
@@ -76,7 +76,7 @@ def upload_chart_to_supabase(html_content: str, stock_symbol: str, chart_type: s
         logger.info(f"Supabase upload response: {response}")
         
         # Get public URL
-        public_url = supabase.storage.from_("charts").get_public_url(filename)
+        public_url = supabase.storage.from_("Kubera").get_public_url(filename)
         
         logger.info(f"Chart uploaded successfully: {public_url[:80]}...")
         return public_url
@@ -357,7 +357,7 @@ def generate_candlestick_chart(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "candlestick")
 
             if chart_url:
                 result["chart_url"] = chart_url
@@ -524,7 +524,7 @@ def generate_technical_indicators_chart(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "technical_indicators")
 
             if chart_url:
                 result["chart_url"] = chart_url
@@ -621,7 +621,7 @@ def generate_fundamental_comparison_chart(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "fundamental_comparison")
 
             if chart_url:
                 result["chart_url"] = chart_url
@@ -737,7 +737,7 @@ def generate_financial_trend_chart(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "financial_trend")
 
             if chart_url:
                 result["chart_url"] = chart_url
@@ -847,7 +847,7 @@ def generate_performance_vs_benchmark_chart(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "performance_comparison")
 
             if chart_url:
                 result["chart_url"] = chart_url
@@ -930,7 +930,7 @@ def generate_valuation_heatmap(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "valuation_heatmap")
 
             if chart_url:
                 result["chart_url"] = chart_url
@@ -1020,7 +1020,7 @@ def generate_portfolio_composition_chart(
                 )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "portfolio_composition")
 
             if chart_url:
                 result["chart_url"] = chart_url
@@ -1106,7 +1106,7 @@ def generate_dividend_timeline_chart(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "dividend_timeline")
 
             if chart_url:
                 result["chart_url"] = chart_url
@@ -1211,7 +1211,7 @@ def generate_risk_return_scatter(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
+            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "risk_return_scatter")
 
             if chart_url:
                 result["chart_url"] = chart_url

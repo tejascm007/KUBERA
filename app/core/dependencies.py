@@ -187,6 +187,21 @@ async def get_current_admin(
     return admin
 
 
+async def get_current_super_admin(
+    admin: dict = Depends(get_current_admin)
+):
+    """
+    Get current authenticated super admin.
+    Wraps get_current_admin and additionally checks is_super_admin flag.
+
+    Raises:
+        ForbiddenException: Not a super admin
+    """
+    if not admin.get("is_super_admin"):
+        raise ForbiddenException("Super admin access required")
+    return admin
+
+
 # ============================================================================
 # WEBSOCKET AUTHENTICATION
 # ============================================================================

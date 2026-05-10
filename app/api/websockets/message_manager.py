@@ -30,8 +30,21 @@ class MessageManager:
     
     async def save_assistant_response(self, message_id: str, response: str,
                                      tokens_used: int, processing_time_ms: int,
-                                     tools_used: list, chart_url: str = None):
-        """Save assistant response to database"""
+                                     tools_used: list, chart_url: str = None,
+                                     chart_urls: list = None):
+        """Save assistant response to database.
+        
+        chart_urls (list) takes priority over chart_url (str).
+        Multiple URLs are serialized as a JSON array string into the text column.
+        """
+        import json
+
+        # Determine what to store: prefer list, fall back to single URL
+        if chart_urls:
+            chart_url_to_save = json.dumps(chart_urls)  # e.g. '["url1", "url2"]'
+        else:
+            chart_url_to_save = chart_url  # None or single string (legacy)
+
         query = """
             UPDATE messages
             SET 
@@ -43,14 +56,14 @@ class MessageManager:
                 response_completed_at = NOW()
             WHERE message_id = $6
         """
-        logger.info(f"Saving chart_url to DB: {chart_url[:50] if chart_url else 'None'}")
+        logger.info(f"Saving chart_url to DB: {chart_url_to_save[:80] if chart_url_to_save else 'None'}")
         await self.db_pool.execute(
             query,
             response,
             tokens_used,
             processing_time_ms,
             tools_used,
-            chart_url,
+            chart_url_to_save,
             message_id
         )
         logger.info(f"Saved assistant response for message {message_id}")

@@ -237,10 +237,12 @@ You can reference this portfolio data when answering questions about the user's 
                     # Include chart_url and chart_html if visualization tool was used
                     chart_url = chunk.get("chart_url")
                     chart_html = chunk.get("chart_html")
-                    if chart_url:
-                        logger.info(f" Chart URL available: {chart_url[:50]}...")
-                    if chart_html:
-                        logger.info(f" Chart HTML available: {len(chart_html)} bytes")
+                    chart_urls = chunk.get("chart_urls", [])
+                    chart_htmls = chunk.get("chart_htmls", [])
+                    if chart_urls:
+                        logger.info(f" {len(chart_urls)} chart URL(s) available")
+                    if chart_htmls:
+                        logger.info(f" {len(chart_htmls)} chart HTML(s) available")
                     
                     yield {
                         "type": "message_complete",
@@ -249,7 +251,9 @@ You can reference this portfolio data when answering questions about the user's 
                             "tools_used": chunk.get("tools_used", []),
                             "iterations": chunk.get("iterations", 1),
                             "chart_url": chart_url,
-                            "chart_html": chart_html  # Send HTML to frontend
+                            "chart_html": chart_html,
+                            "chart_urls": chart_urls,
+                            "chart_htmls": chart_htmls,
                         }
                     }
                 

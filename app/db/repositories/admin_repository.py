@@ -48,12 +48,30 @@ class AdminRepository:
             return dict(row) if row else None
     
     async def get_all_admins(self) -> List[Dict[str, Any]]:
-        """Get all admins"""
-        query = "SELECT * FROM admin ORDER BY created_at ASC"
+        """Get all non-super admins"""
+        query = "SELECT admin_id, email, full_name, is_active, is_super_admin, created_at, last_login_at FROM admins WHERE is_super_admin = FALSE ORDER BY created_at ASC"
         
         async with self.db.acquire() as conn:
             rows = await conn.fetch(query)
-            return [dict(row) for row in rows]
+            result = []
+            for row in rows:
+                d = dict(row)
+                d['admin_id'] = str(d['admin_id'])
+                result.append(d)
+            return result
+    
+    async def get_admin_counts(self) -> Dict[str, int]:
+        """Get total and active admin counts (non-super-admins)"""
+        query = """
+            SELECT
+                COUNT(*) FILTER (WHERE is_super_admin = FALSE) AS total_admins,
+                COUNT(*) FILTER (WHERE is_super_admin = FALSE AND is_active = TRUE) AS active_admins,
+                COUNT(*) FILTER (WHERE is_super_admin = FALSE AND is_active = FALSE) AS inactive_admins
+            FROM admins
+        """
+        async with self.db.acquire() as conn:
+            row = await conn.fetchrow(query)
+            return dict(row) if row else {'total_admins': 0, 'active_admins': 0, 'inactive_admins': 0}
     
     # ========================================================================
     # UPDATE

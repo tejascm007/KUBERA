@@ -316,69 +316,153 @@ class EmailService:
         user: Dict[str, Any],
         portfolio_data: Dict[str, Any]
     ) -> bool:
-        """Send portfolio performance report"""
-        
-        # Check if user has portfolio reports enabled
-        preferences = await self.email_repo.get_email_preferences(user['user_id'])
-        if not preferences or not preferences.get('portfolio_reports'):
-            return False
-        
+        """Send portfolio performance report — premium HTML, no attachments"""
+        from datetime import datetime as _dt
+
         summary = portfolio_data.get('summary', {})
         entries = portfolio_data.get('portfolio', [])
-        
-        # Build portfolio table
-        portfolio_rows = ""
-        for entry in entries:
-            gain_loss_color = "green" if entry.get('gain_loss', 0) >= 0 else "red"
-            portfolio_rows += f"""
-            <tr>
-                <td>{entry['stock_symbol']}</td>
-                <td>{entry['quantity']}</td>
-                <td>₹{entry['buy_price']:.2f}</td>
-                <td>₹{entry.get('current_price', 0):.2f}</td>
-                <td style="color: {gain_loss_color};">₹{entry.get('gain_loss', 0):.2f} ({entry.get('gain_loss_percent', 0):.2f}%)</td>
-            </tr>
-            """
-        
-        total_gain_color = "green" if summary.get('total_gain_loss', 0) >= 0 else "red"
-        
-        content = f"""
-        <h2>Your Portfolio Report</h2>
-        <p>Hi {user['full_name']},</p>
-        <p>Here's your portfolio performance summary:</p>
-        
-        <h3>Summary</h3>
-        <ul>
-            <li><strong>Total Invested:</strong> ₹{summary.get('total_invested', 0):,.2f}</li>
-            <li><strong>Current Value:</strong> ₹{summary.get('current_value', 0):,.2f}</li>
-            <li><strong>Total Gain/Loss:</strong> <span style="color: {total_gain_color};">₹{summary.get('total_gain_loss', 0):,.2f} ({summary.get('total_gain_loss_percent', 0):.2f}%)</span></li>
-            <li><strong>Total Holdings:</strong> {summary.get('total_entries', 0)} stocks</li>
-        </ul>
-        
-        <h3>Holdings</h3>
-        <table style="width: 100%; border-collapse: collapse;">
-            <thead>
-                <tr style="background: #f0f0f0;">
-                    <th style="padding: 8px; text-align: left;">Stock</th>
-                    <th style="padding: 8px; text-align: left;">Qty</th>
-                    <th style="padding: 8px; text-align: left;">Buy Price</th>
-                    <th style="padding: 8px; text-align: left;">Current</th>
-                    <th style="padding: 8px; text-align: left;">Gain/Loss</th>
+
+        report_date = _dt.now().strftime("%d %b %Y")
+
+        # ── Summary numbers ───────────────────────────────────────────────────
+        total_invested      = summary.get('total_invested', 0)
+        current_value       = summary.get('current_value', 0)
+        total_gain_loss     = summary.get('total_gain_loss', 0)
+        gain_loss_pct       = summary.get('total_gain_loss_percent', 0)
+        total_entries       = summary.get('total_entries', 0)
+
+        gain_color   = "#16a34a" if total_gain_loss >= 0 else "#dc2626"
+        gain_bg      = "#f0fdf4" if total_gain_loss >= 0 else "#fef2f2"
+        gain_symbol  = "▲" if total_gain_loss >= 0 else "▼"
+
+        # ── Holdings rows ─────────────────────────────────────────────────────
+        if entries:
+            holdings_rows = ""
+            for i, e in enumerate(entries):
+                gl       = e.get('gain_loss', 0)
+                gl_pct   = e.get('gain_loss_percent', 0)
+                gl_color = "#16a34a" if gl >= 0 else "#dc2626"
+                row_bg   = "#ffffff" if i % 2 == 0 else "#f8fafc"
+                holdings_rows += f"""
+                <tr>
+                  <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;background:{row_bg};font-weight:600;color:#1e293b;">{e.get('stock_symbol','—')}</td>
+                  <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;background:{row_bg};color:#475569;">{e.get('quantity','—')}</td>
+                  <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;background:{row_bg};color:#475569;">₹{float(e.get('buy_price',0)):,.2f}</td>
+                  <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;background:{row_bg};color:#475569;">₹{float(e.get('current_price',0)):,.2f}</td>
+                  <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;background:{row_bg};color:{gl_color};font-weight:600;">₹{float(gl):,.2f}<br><span style="font-size:11px;">({float(gl_pct):+.2f}%)</span></td>
+                </tr>"""
+            holdings_section = f"""
+            <h3 style="margin:32px 0 12px;font-size:16px;color:#1e293b;font-family:Arial,sans-serif;">Holdings</h3>
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;">
+              <thead>
+                <tr style="background:#1e293b;">
+                  <th style="padding:10px 12px;text-align:left;color:#94a3b8;font-size:12px;font-weight:600;font-family:Arial,sans-serif;">SYMBOL</th>
+                  <th style="padding:10px 12px;text-align:left;color:#94a3b8;font-size:12px;font-weight:600;font-family:Arial,sans-serif;">QTY</th>
+                  <th style="padding:10px 12px;text-align:left;color:#94a3b8;font-size:12px;font-weight:600;font-family:Arial,sans-serif;">BUY PRICE</th>
+                  <th style="padding:10px 12px;text-align:left;color:#94a3b8;font-size:12px;font-weight:600;font-family:Arial,sans-serif;">CURRENT</th>
+                  <th style="padding:10px 12px;text-align:left;color:#94a3b8;font-size:12px;font-weight:600;font-family:Arial,sans-serif;">GAIN / LOSS</th>
                 </tr>
-            </thead>
-            <tbody>
-                {portfolio_rows}
-            </tbody>
-        </table>
-        
-        <p><small>Last updated: {summary.get('last_updated', 'N/A')}</small></p>
-        """
-        
-        html_body = Template(self._get_base_template()).render(content=content)
-        
+              </thead>
+              <tbody>{holdings_rows}</tbody>
+            </table>"""
+        else:
+            holdings_section = """
+            <p style="color:#64748b;font-style:italic;margin-top:24px;font-family:Arial,sans-serif;">
+              No portfolio entries found. Add stocks in your KUBERA portfolio to see them here.
+            </p>"""
+
+        html_body = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>KUBERA Portfolio Report</title></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+
+        <!-- HEADER -->
+        <tr><td style="background:#0f172a;border-radius:12px 12px 0 0;padding:32px 40px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td>
+                <div style="font-size:24px;font-weight:800;color:#ffffff;letter-spacing:2px;">KUBERA</div>
+                <div style="font-size:12px;color:#64748b;margin-top:4px;letter-spacing:1px;">YOUR STOCK ANALYSIS COMPANION</div>
+              </td>
+              <td align="right">
+                <div style="background:#1e293b;border-radius:8px;padding:8px 14px;display:inline-block;">
+                  <div style="font-size:11px;color:#64748b;">Portfolio Report</div>
+                  <div style="font-size:13px;color:#e2e8f0;font-weight:600;">{report_date}</div>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+
+        <!-- BODY -->
+        <tr><td style="background:#ffffff;padding:32px 40px;border-radius:0 0 12px 12px;">
+
+          <p style="margin:0 0 24px;color:#475569;font-size:15px;">
+            Hi <strong style="color:#1e293b;">{user.get('full_name','Investor')}</strong>,<br>
+            Here is your portfolio performance summary for <strong>{report_date}</strong>.
+          </p>
+
+          <!-- SUMMARY CARDS -->
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;">
+            <tr>
+              <td width="30%" style="padding:4px;">
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;text-align:center;">
+                  <div style="font-size:11px;color:#64748b;font-weight:600;letter-spacing:0.5px;margin-bottom:6px;">INVESTED</div>
+                  <div style="font-size:18px;font-weight:700;color:#1e293b;">₹{float(total_invested):,.0f}</div>
+                </div>
+              </td>
+              <td width="4%"></td>
+              <td width="30%" style="padding:4px;">
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;text-align:center;">
+                  <div style="font-size:11px;color:#64748b;font-weight:600;letter-spacing:0.5px;margin-bottom:6px;">CURRENT VALUE</div>
+                  <div style="font-size:18px;font-weight:700;color:#1e293b;">₹{float(current_value):,.0f}</div>
+                </div>
+              </td>
+              <td width="4%"></td>
+              <td width="32%" style="padding:4px;">
+                <div style="background:{gain_bg};border:1px solid {gain_color}33;border-radius:10px;padding:16px;text-align:center;">
+                  <div style="font-size:11px;color:#64748b;font-weight:600;letter-spacing:0.5px;margin-bottom:6px;">TOTAL GAIN / LOSS</div>
+                  <div style="font-size:18px;font-weight:700;color:{gain_color};">{gain_symbol} ₹{abs(float(total_gain_loss)):,.0f}</div>
+                  <div style="font-size:12px;color:{gain_color};margin-top:2px;">{float(gain_loss_pct):+.2f}%</div>
+                </div>
+              </td>
+            </tr>
+          </table>
+
+          <p style="text-align:center;margin:8px 0 4px;font-size:12px;color:#94a3b8;">
+            {total_entries} stock{'s' if total_entries != 1 else ''} in portfolio
+          </p>
+
+          <!-- HOLDINGS TABLE -->
+          {holdings_section}
+
+          <!-- FOOTER NOTE -->
+          <p style="margin-top:32px;font-size:12px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:20px;">
+            This report is generated automatically by KUBERA. Prices shown may be delayed.<br>
+            This is not financial advice. Please do your own research before making investment decisions.
+          </p>
+
+        </td></tr>
+
+        <!-- BOTTOM BAR -->
+        <tr><td style="padding:20px;text-align:center;">
+          <p style="margin:0;font-size:11px;color:#94a3b8;">© 2025 KUBERA · All rights reserved · This is an automated email, please do not reply.</p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
         return await self._send_email(
             recipient_email=user['email'],
-            subject="KUBERA - Your Portfolio Report",
+            subject=f"KUBERA Portfolio Report — {report_date}",
             html_body=html_body,
             email_type="portfolio_report"
         )

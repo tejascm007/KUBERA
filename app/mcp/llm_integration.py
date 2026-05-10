@@ -160,8 +160,8 @@ Remember: You are a research helper, not an advisor. Your job is to make informa
         iteration = 0
         total_tokens = 0
         tools_used = []
-        chart_url = None  # Track chart URL from visualization tools
-        chart_html = None  # Track chart HTML for direct rendering
+        chart_urls = []  # Track all chart URLs from visualization tools
+        chart_htmls = []  # Track all chart HTMLs for direct rendering
         
         while iteration < max_iterations:
             iteration += 1
@@ -240,8 +240,11 @@ Remember: You are a research helper, not an advisor. Your job is to make informa
                         "iterations": iteration,
                         "tokens_used": int(total_tokens),
                         "tools_used": tools_used,
-                        "chart_url": chart_url,  # Include chart URL for storage
-                        "chart_html": chart_html  # Include chart HTML for direct rendering
+                        "chart_urls": chart_urls,   # All chart URLs
+                        "chart_htmls": chart_htmls,  # All chart HTMLs
+                        # Keep legacy single-value keys for backward compat
+                        "chart_url": chart_urls[0] if chart_urls else None,
+                        "chart_html": chart_htmls[0] if chart_htmls else None,
                     }
                     break
                 
@@ -276,11 +279,11 @@ Remember: You are a research helper, not an advisor. Your job is to make informa
                         # Extract chart_url and chart_html from visualization tool results
                         if result.get("result") and isinstance(result["result"], dict):
                             if result["result"].get("chart_url"):
-                                chart_url = result["result"]["chart_url"]
-                                logger.info(f"Chart URL extracted: {chart_url[:50]}...")
+                                chart_urls.append(result["result"]["chart_url"])
+                                logger.info(f"Chart URL extracted: {result['result']['chart_url'][:50]}...")
                             if result["result"].get("chart_html"):
-                                chart_html = result["result"]["chart_html"]
-                                logger.info(f"Chart HTML extracted: {len(chart_html)} bytes")
+                                chart_htmls.append(result["result"]["chart_html"])
+                                logger.info(f"Chart HTML extracted: {len(result['result']['chart_html'])} bytes")
                         
                         yield {
                             "type": "tool_complete",

@@ -387,7 +387,7 @@ class RateLimitRepository:
         
         if violation_type:
             query = """
-                SELECT v.*, u.email, u.username
+                SELECT v.*, u.email as user_email, u.username
                 FROM rate_limit_violations v
                 JOIN users u ON v.user_id = u.user_id
                 WHERE v.violation_type = $1
@@ -397,7 +397,7 @@ class RateLimitRepository:
             params = [violation_type, limit, offset]
         else:
             query = """
-                SELECT v.*, u.email, u.username
+                SELECT v.*, u.email as user_email, u.username
                 FROM rate_limit_violations v
                 JOIN users u ON v.user_id = u.user_id
                 ORDER BY v.violated_at DESC
@@ -407,7 +407,15 @@ class RateLimitRepository:
         
         async with self.db.acquire() as conn:
             rows = await conn.fetch(query, *params)
-            return [dict(row) for row in rows]
+            result = []
+            for row in rows:
+                d = dict(row)
+                # Convert UUID fields to strings for Pydantic serialization
+                for field in ('violation_id', 'user_id', 'chat_id'):
+                    if d.get(field) is not None:
+                        d[field] = str(d[field])
+                result.append(d)
+            return result
     
     async def count_violations(
         self,

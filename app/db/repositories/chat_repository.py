@@ -94,23 +94,9 @@ class ChatRepository:
             )
             return dict(row) if row else None
     
-    async def increment_prompt_count(self, chat_id: str) -> None:
-        """Increment prompt count for a chat"""
-        query = """
-            UPDATE chats
-            SET 
-                prompt_count = prompt_count + 1,
-                last_message_at = $1,
-                updated_at = $1
-            WHERE chat_id = $2
-        """
-        
-        async with self.db.acquire() as conn:
-            await conn.execute(query, get_current_ist_time(), chat_id)
-    
     async def get_chat_prompt_count(self, chat_id: str) -> int:
-        """Get current prompt count for a chat"""
-        query = "SELECT prompt_count FROM chats WHERE chat_id = $1"
+        """Get number of prompts sent in a chat (counts messages rows)"""
+        query = "SELECT COUNT(*) FROM messages WHERE chat_id = $1"
         
         async with self.db.acquire() as conn:
             return await conn.fetchval(query, chat_id) or 0
@@ -316,7 +302,7 @@ class ChatRepository:
                     TO_CHAR(h.hour_slot AT TIME ZONE 'Asia/Kolkata', 'HH24:00') as label,
                     COALESCE(COUNT(m.message_id), 0)::int as value
                 FROM hours h
-                LEFT JOIN messages m ON date_trunc('hour', m.created_at AT TIME ZONE 'Asia/Kolkata') = h.hour_slot
+                LEFT JOIN messages m ON date_trunc('hour', m.created_at) = h.hour_slot
                 GROUP BY h.hour_slot
                 ORDER BY h.hour_slot ASC
             """
@@ -339,7 +325,7 @@ class ChatRepository:
                     TO_CHAR(d.day_slot AT TIME ZONE 'Asia/Kolkata', 'Mon DD') as label,
                     COALESCE(COUNT(m.message_id), 0)::int as value
                 FROM days d
-                LEFT JOIN messages m ON date_trunc('day', m.created_at AT TIME ZONE 'Asia/Kolkata') = d.day_slot
+                LEFT JOIN messages m ON date_trunc('day', m.created_at) = d.day_slot
                 GROUP BY d.day_slot
                 ORDER BY d.day_slot ASC
             """
@@ -362,10 +348,11 @@ class ChatRepository:
                     TO_CHAR(d.day_slot AT TIME ZONE 'Asia/Kolkata', 'Mon DD') as label,
                     COALESCE(COUNT(m.message_id), 0)::int as value
                 FROM days d
-                LEFT JOIN messages m ON date_trunc('day', m.created_at AT TIME ZONE 'Asia/Kolkata') = d.day_slot
+                LEFT JOIN messages m ON date_trunc('day', m.created_at) = d.day_slot
                 GROUP BY d.day_slot
                 ORDER BY d.day_slot ASC
             """
             async with self.db.acquire() as conn:
                 rows = await conn.fetch(query, start_time, current_time)
                 return [{'label': row['label'], 'value': row['value']} for row in rows]
+

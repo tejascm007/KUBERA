@@ -37,6 +37,7 @@
 ## ✨ Features
 
 ### Core Features
+
 - 🤖 **AI-Powered Chat**: Real-time conversations powered by OpenRouter (Llama 3.3, Claude, GPT-4, etc.)
 - 📊 **Stock Analysis**: Comprehensive analysis of NSE/BSE stocks
 - 💼 **Portfolio Tracking**: Track your investments with live price updates
@@ -45,36 +46,45 @@
 - 📰 **News & Sentiment**: Real-time market news and sentiment analysis
 
 ### Authentication & Security
+
 - 🔐 **3-Step OTP Registration**: Email-based verification
 - 🎫 **JWT Authentication**: Secure access and refresh tokens
 - 🔒 **Password Security**: Bcrypt hashing with strict requirements
 - 🔄 **Session Management**: Automatic token refresh
 
 ### Rate Limiting
-- ⚡ **4-Level Fail-Fast System**:
-  - Burst: 10 prompts/minute
-  - Per-Chat: 50 prompts/chat
-  - Hourly: 150 prompts/hour
-  - Daily: 1000 prompts/24 hours
+
+- ⚡ **4-Level Fail-Fast System** (DB-driven, configurable via Admin Panel):
+  - Burst: 10 prompts/minute (default)
+  - Per-Chat: 50 prompts/chat (default)
+  - Hourly: 150 prompts/hour (default)
+  - Daily: 1000 prompts/24 hours (default)
+  - Whitelist: selected users bypass all limits
+  - Per-user overrides: custom limits per user
 
 ### Email Notifications
+
 - 📧 **15+ Email Triggers**:
   - Registration OTP
   - Password reset
   - Welcome email
-  - Rate limit notifications
-  - Portfolio reports
+  - Rate limit violation notifications
+  - Portfolio reports (sent to **all active users**)
+  - Account deactivation / reactivation (users & admins)
   - Security alerts
 
 ### Admin Panel
+
 - 🎛️ **Complete System Management**:
-  - User management
-  - Rate limit configuration
-  - System control (start/stop)
-  - Analytics dashboard
-  - Activity logs
+  - User management (activate/deactivate, user-specific rate overrides)
+  - **Super Admin role**: manages regular admins (activate/deactivate admins)
+  - Rate limit configuration — DB-driven, live without restarts
+  - System control (start/stop/maintenance)
+  - Analytics dashboard with role-aware pie charts
+  - Admin activity logs
 
 ### Background Jobs
+
 - ⏰ **Automated Tasks**:
   - Portfolio price updates (every 30 mins)
   - Daily/weekly/monthly reports
@@ -120,45 +130,50 @@
 ## 🛠️ Tech Stack
 
 ### Backend
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| FastAPI | 0.109.0 | Web Framework |
-| Python | 3.11+ | Language |
-| Uvicorn | Latest | ASGI Server |
-| PostgreSQL | 14+ | Database |
-| AsyncPG | Latest | Async PostgreSQL Driver |
+
+| Technology | Version | Purpose                 |
+| ---------- | ------- | ----------------------- |
+| FastAPI    | 0.109.0 | Web Framework           |
+| Python     | 3.11+   | Language                |
+| Uvicorn    | Latest  | ASGI Server             |
+| PostgreSQL | 14+     | Database                |
+| AsyncPG    | Latest  | Async PostgreSQL Driver |
 
 ### AI & LLM
-| Technology | Purpose |
-|------------|---------|
-| OpenRouter | LLM Gateway (multi-model) |
-| Llama 3.3-70B | Default LLM Model |
-| LangChain | LLM Orchestration |
-| FastMCP | MCP Protocol |
+
+| Technology    | Purpose                   |
+| ------------- | ------------------------- |
+| OpenRouter    | LLM Gateway (multi-model) |
+| Llama 3.3-70B | Default LLM Model         |
+| LangChain     | LLM Orchestration         |
+| FastMCP       | MCP Protocol              |
 
 ### Data & Finance
-| Technology | Purpose |
-|------------|---------|
-| yfinance | Stock Data |
-| Pandas | Data Processing |
-| NumPy | Numerical Computing |
-| Plotly | Interactive Charts |
-| Matplotlib | Static Charts |
+
+| Technology | Purpose             |
+| ---------- | ------------------- |
+| yfinance   | Stock Data          |
+| Pandas     | Data Processing     |
+| NumPy      | Numerical Computing |
+| Plotly     | Interactive Charts  |
+| Matplotlib | Static Charts       |
 
 ### Authentication
-| Technology | Purpose |
-|------------|---------|
-| python-jose | JWT Tokens |
+
+| Technology       | Purpose          |
+| ---------------- | ---------------- |
+| python-jose      | JWT Tokens       |
 | passlib (bcrypt) | Password Hashing |
-| Pydantic | Validation |
+| Pydantic         | Validation       |
 
 ### Infrastructure
-| Technology | Purpose |
-|------------|---------|
-| APScheduler | Background Jobs |
-| aiosmtplib | Async Email |
-| Docker | Containerization |
-| Supabase | Chart Storage |
+
+| Technology  | Purpose          |
+| ----------- | ---------------- |
+| APScheduler | Background Jobs  |
+| aiosmtplib  | Async Email      |
+| Docker      | Containerization |
+| Supabase    | Chart Storage    |
 
 ---
 
@@ -277,6 +292,7 @@ kubera-backend/
 ## 📥 Installation
 
 ### Prerequisites
+
 - Python 3.11 or higher
 - PostgreSQL 14 or higher
 - pip or uv (package manager)
@@ -367,7 +383,7 @@ SUPABASE_ANON_KEY=your-anon-key
 # ===========================================
 FINNHUB_API_KEY=your-finnhub-key
 ALPHA_VANTAGE_API_KEY=your-alpha-vantage-key
-NEWS_API_KEY=your-news-api-key
+NEWSAPI_KEY=your-news-api-key
 ```
 
 ### 2. Generate Secret Key
@@ -440,13 +456,13 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 
 ### Access Points
 
-| Endpoint | URL |
-|----------|-----|
-| 🌐 API Root | http://localhost:8000 |
-| 📖 Swagger Docs | http://localhost:8000/docs |
-| 📚 ReDoc | http://localhost:8000/redoc |
+| Endpoint        | URL                          |
+| --------------- | ---------------------------- |
+| 🌐 API Root     | http://localhost:8000        |
+| 📖 Swagger Docs | http://localhost:8000/docs   |
+| 📚 ReDoc        | http://localhost:8000/redoc  |
 | ❤️ Health Check | http://localhost:8000/health |
-| 🔌 WebSocket | ws://localhost:8000/ws/chat |
+| 🔌 WebSocket    | ws://localhost:8000/ws/chat  |
 
 ---
 
@@ -500,7 +516,7 @@ DELETE /chats/{chat_id}            # Delete chat
 PUT    /chats/{chat_id}/rename     # Rename chat
 ```
 
-### Admin Endpoints (19)
+### Admin Endpoints (22)
 
 ```http
 POST   /admin/login/send-otp                   # Admin login - Send OTP
@@ -522,6 +538,11 @@ GET    /admin/portfolio-reports/settings       # Get portfolio report settings
 PUT    /admin/portfolio-reports/settings       # Update portfolio report settings
 POST   /admin/system/control                   # System control (start/stop)
 GET    /admin/activity-logs                    # Get admin activity logs
+
+# Super Admin only (role: super_admin)
+GET    /admin/admins                           # List all admins
+PUT    /admin/admins/{admin_id}/deactivate     # Deactivate an admin
+PUT    /admin/admins/{admin_id}/reactivate     # Reactivate an admin
 ```
 
 ### Root Endpoints (4)
@@ -547,73 +568,73 @@ KUBERA uses 5 specialized MCP servers with **45 tools** total:
 
 ### Server 1: Financial Data (`fin_data.py`) - 7 Tools
 
-| Tool | Description |
-|------|-------------|
-| `fetch_company_fundamentals` | Core fundamental metrics |
-| `fetch_historical_financials` | Historical financial data |
-| `fetch_balance_sheet_data` | Balance sheet components |
-| `fetch_cash_flow_data` | Cash flow statement |
-| `fetch_dividend_history` | Dividend data & sustainability |
-| `fetch_eps_analysis` | EPS trends & analysis |
-| `validate_stock_symbol` | Symbol validation |
+| Tool                          | Description                    |
+| ----------------------------- | ------------------------------ |
+| `fetch_company_fundamentals`  | Core fundamental metrics       |
+| `fetch_historical_financials` | Historical financial data      |
+| `fetch_balance_sheet_data`    | Balance sheet components       |
+| `fetch_cash_flow_data`        | Cash flow statement            |
+| `fetch_dividend_history`      | Dividend data & sustainability |
+| `fetch_eps_analysis`          | EPS trends & analysis          |
+| `validate_stock_symbol`       | Symbol validation              |
 
 ### Server 2: Market & Technical (`market_tech.py`) - 9 Tools
 
-| Tool | Description |
-|------|-------------|
-| `fetch_current_price_data` | Real-time price data |
-| `fetch_historical_price_data` | OHLCV historical data |
-| `fetch_technical_indicators` | SMA, RSI, MACD, BBands |
-| `fetch_volume_analysis` | Volume trends |
-| `fetch_volatility_metrics` | Beta, drawdown, Sharpe |
-| `fetch_comparative_performance` | Performance comparison |
-| `fetch_institutional_holding_data` | FII/DII holdings |
-| `fetch_liquidity_metrics` | Trading liquidity |
-| `validate_technical_data` | Data quality check |
+| Tool                               | Description            |
+| ---------------------------------- | ---------------------- |
+| `fetch_current_price_data`         | Real-time price data   |
+| `fetch_historical_price_data`      | OHLCV historical data  |
+| `fetch_technical_indicators`       | SMA, RSI, MACD, BBands |
+| `fetch_volume_analysis`            | Volume trends          |
+| `fetch_volatility_metrics`         | Beta, drawdown, Sharpe |
+| `fetch_comparative_performance`    | Performance comparison |
+| `fetch_institutional_holding_data` | FII/DII holdings       |
+| `fetch_liquidity_metrics`          | Trading liquidity      |
+| `validate_technical_data`          | Data quality check     |
 
 ### Server 3: Governance & Compliance (`gov_compliance.py`) - 8 Tools
 
-| Tool | Description |
-|------|-------------|
-| `fetch_promoter_holding_data` | Promoter & pledging info |
-| `fetch_board_composition` | Board structure |
-| `fetch_audit_quality` | Auditor information |
-| `fetch_regulatory_compliance` | Regulatory status |
-| `fetch_shareholding_pattern` | Complete shareholding |
-| `fetch_related_party_transactions` | Related party deals |
-| `fetch_governance_score` | Governance quality score |
-| `fetch_insider_transactions` | Insider trading patterns |
+| Tool                               | Description              |
+| ---------------------------------- | ------------------------ |
+| `fetch_promoter_holding_data`      | Promoter & pledging info |
+| `fetch_board_composition`          | Board structure          |
+| `fetch_audit_quality`              | Auditor information      |
+| `fetch_regulatory_compliance`      | Regulatory status        |
+| `fetch_shareholding_pattern`       | Complete shareholding    |
+| `fetch_related_party_transactions` | Related party deals      |
+| `fetch_governance_score`           | Governance quality score |
+| `fetch_insider_transactions`       | Insider trading patterns |
 
 ### Server 4: News & Sentiment (`news_sent.py`) - 10 Tools
 
-| Tool | Description |
-|------|-------------|
-| `fetch_news_articles` | Recent news articles |
-| `fetch_overall_news_sentiment` | Aggregate sentiment |
-| `fetch_analyst_ratings` | Analyst recommendations |
-| `fetch_social_sentiment` | Social media sentiment |
-| `fetch_company_announcements` | Official announcements |
-| `fetch_sector_sentiment` | Sector-wide sentiment |
-| `fetch_competitor_sentiment` | Competitor comparison |
-| `fetch_news_impact_analysis` | Price impact analysis |
-| `fetch_management_commentary` | Management guidance |
-| `calculate_sentiment_score` | Text sentiment scoring |
+| Tool                           | Description             |
+| ------------------------------ | ----------------------- |
+| `fetch_news_articles`          | Recent news articles    |
+| `fetch_overall_news_sentiment` | Aggregate sentiment     |
+| `fetch_analyst_ratings`        | Analyst recommendations |
+| `fetch_social_sentiment`       | Social media sentiment  |
+| `fetch_company_announcements`  | Official announcements  |
+| `fetch_sector_sentiment`       | Sector-wide sentiment   |
+| `fetch_competitor_sentiment`   | Competitor comparison   |
+| `fetch_news_impact_analysis`   | Price impact analysis   |
+| `fetch_management_commentary`  | Management guidance     |
+| `calculate_sentiment_score`    | Text sentiment scoring  |
 
 ### Server 5: Visualization (`visualization.py`) - 11 Tools
 
-| Tool | Description |
-|------|-------------|
-| `generate_price_volume_chart` | Price & volume chart |
-| `generate_candlestick_chart` | Candlestick chart |
-| `generate_technical_indicators_chart` | Technical chart |
-| `generate_fundamental_comparison_chart` | Comparison chart |
-| `generate_financial_trend_chart` | Trend chart |
-| `generate_performance_vs_benchmark_chart` | Benchmark comparison |
-| `generate_valuation_heatmap` | Valuation heatmap |
-| `generate_portfolio_composition_chart` | Portfolio pie/treemap |
-| `generate_dividend_timeline_chart` | Dividend timeline |
-| `generate_risk_return_scatter` | Risk-return scatter |
-| `validate_chart_data` | Chart data validation |
+| Tool                                      | Description           |
+| ----------------------------------------- | --------------------- |
+| `generate_price_volume_chart`             | Price & volume chart  |
+| `generate_candlestick_chart`              | Candlestick chart     |
+| `generate_technical_indicators_chart`     | Technical chart       |
+| `generate_fundamental_comparison_chart`   | Comparison chart      |
+| `generate_financial_trend_chart`          | Trend chart           |
+| `generate_performance_vs_benchmark_chart` | Benchmark comparison  |
+| `generate_valuation_heatmap`              | Valuation heatmap     |
+| `generate_portfolio_composition_chart`    | Portfolio pie/treemap |
+| `generate_dividend_timeline_chart`        | Dividend timeline     |
+| `generate_risk_return_scatter`            | Risk-return scatter   |
+| `validate_chart_data`                     | Chart data validation |
 
 ---
 
@@ -622,7 +643,7 @@ KUBERA uses 5 specialized MCP servers with **45 tools** total:
 ### Connect
 
 ```javascript
-const ws = new WebSocket('ws://localhost:8000/ws/chat?token=YOUR_JWT_TOKEN');
+const ws = new WebSocket("ws://localhost:8000/ws/chat?token=YOUR_JWT_TOKEN");
 ```
 
 ### Client → Server Messages
@@ -692,12 +713,12 @@ const ws = new WebSocket('ws://localhost:8000/ws/chat?token=YOUR_JWT_TOKEN');
 
 ### Configured Jobs
 
-| Job | Frequency | Description |
-|-----|-----------|-------------|
-| Portfolio Price Update | Every 30 minutes | Updates stock prices via yfinance |
-| Portfolio Reports | Configurable | Sends email reports (daily/weekly/monthly) |
-| Cleanup OTPs | Every hour | Removes expired OTPs |
-| Cleanup Tokens | Every 6 hours | Removes revoked/expired tokens |
+| Job                    | Frequency        | Description                                |
+| ---------------------- | ---------------- | ------------------------------------------ |
+| Portfolio Price Update | Every 30 minutes | Updates stock prices via yfinance          |
+| Portfolio Reports      | Configurable     | Sends email reports (daily/weekly/monthly) |
+| Cleanup OTPs           | Every hour       | Removes expired OTPs                       |
+| Cleanup Tokens         | Every 6 hours    | Removes revoked/expired tokens             |
 
 ### Check Scheduler Status
 
@@ -709,21 +730,24 @@ curl http://localhost:8000/scheduler/status
 
 ## ⚡ Rate Limiting
 
-### 4-Level Fail-Fast System
+### 4-Level Fail-Fast System (DB-driven & live-configurable)
 
-| Level | Limit | Window | Action |
-|-------|-------|--------|--------|
-| 🚀 Burst | 10 prompts | 1 minute | Block immediately |
-| 💬 Per-Chat | 50 prompts | Per chat | Block chat |
-| ⏰ Hourly | 150 prompts | 1 hour | Block for hour |
-| 📅 Daily | 1000 prompts | 24 hours | Block for day |
+All limits are stored in the database and enforced per-prompt via `RateLimitService`. Changes made in the Admin Panel take effect on the **next prompt** — no server restart required.
+
+| Level       | Default      | Window           | Action              |
+| ----------- | ------------ | ---------------- | ------------------- |
+| 🚀 Burst    | 10 prompts   | 1 minute         | Block immediately   |
+| 💬 Per-Chat | 50 prompts   | Per chat session | Block prompt        |
+| ⏰ Hourly   | 150 prompts  | 1 hour           | Block for remainder |
+| 📅 Daily    | 1000 prompts | 24 hours         | Block for remainder |
 
 ### Admin Controls
 
-- ✅ Update limits globally
-- ✅ Set per-user overrides
-- ✅ Whitelist users (no limits)
-- ✅ View violation logs
+- ✅ Update limits globally (live, no restart)
+- ✅ Set per-user overrides (takes priority over global)
+- ✅ Whitelist users (completely bypass all limits)
+- ✅ Reset individual user counters
+- ✅ View violation logs with user info and timestamp
 
 ---
 
@@ -731,13 +755,13 @@ curl http://localhost:8000/scheduler/status
 
 ### 15+ Email Types
 
-| Category | Templates |
-|----------|-----------|
-| 🔑 OTP Emails | Registration, Password Reset, Admin Login |
-| 👤 Account Emails | Welcome, Password Changed, Account Deactivated |
-| ⚡ Rate Limit Emails | Burst/Hourly/Daily Limit Exceeded |
-| 📊 Portfolio Emails | Daily/Weekly/Monthly Reports |
-| 🔔 System Emails | Maintenance, Security Alerts |
+| Category             | Templates                                      |
+| -------------------- | ---------------------------------------------- |
+| 🔑 OTP Emails        | Registration, Password Reset, Admin Login      |
+| 👤 Account Emails    | Welcome, Password Changed, Account Deactivated |
+| ⚡ Rate Limit Emails | Burst/Hourly/Daily Limit Exceeded              |
+| 📊 Portfolio Emails  | Daily/Weekly/Monthly Reports                   |
+| 🔔 System Emails     | Maintenance, Security Alerts                   |
 
 ---
 
@@ -758,12 +782,12 @@ docker-compose down
 
 ### Services
 
-| Service | Port | Description |
-|---------|------|-------------|
-| backend | 8000 | FastAPI application |
-| postgres | 5432 | PostgreSQL database |
-| redis | 6379 | Redis cache (optional) |
-| pgadmin | 5050 | Database management |
+| Service  | Port | Description            |
+| -------- | ---- | ---------------------- |
+| backend  | 8000 | FastAPI application    |
+| postgres | 5432 | PostgreSQL database    |
+| redis    | 6379 | Redis cache (optional) |
+| pgadmin  | 5050 | Database management    |
 
 ### Production Deployment
 
@@ -927,23 +951,24 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📊 Project Statistics
 
-| Metric | Count |
-|--------|-------|
-| 📁 Total Files | 150+ |
-| 📝 Lines of Code | 15,000+ |
-| 🌐 REST Endpoints | 50 |
-| 🔌 WebSocket Endpoints | 1 |
-| 🗄️ Database Tables | 15 |
-| 📇 Database Indexes | 60+ |
-| 🔗 Foreign Keys | 10 |
-| ✅ Constraints | 25+ |
-| ⚡ Triggers | 9 |
-| 🤖 MCP Servers | 5 |
-| 🔧 MCP Tools | 45 |
-| ⏰ Background Jobs | 4 |
-| 📧 Email Templates | 15+ |
-| 📦 Python Packages | 50+ |
-| 🐳 Docker Services | 4 |
+| Metric                 | Count                  |
+| ---------------------- | ---------------------- |
+| 📁 Total Files         | 150+                   |
+| 📝 Lines of Code       | 15,000+                |
+| 🌐 REST Endpoints      | 53                     |
+| 🔌 WebSocket Endpoints | 1                      |
+| 🗄️ Database Tables     | 15                     |
+| 📇 Database Indexes    | 60+                    |
+| 🔗 Foreign Keys        | 10                     |
+| ✅ Constraints         | 25+                    |
+| ⚡ Triggers            | 9                      |
+| 🤖 MCP Servers         | 5                      |
+| 🔧 MCP Tools           | 45                     |
+| ⏰ Background Jobs     | 4                      |
+| 📧 Email Templates     | 15+                    |
+| 👤 Admin Roles         | 2 (admin, super_admin) |
+| 📦 Python Packages     | 50+                    |
+| 🐳 Docker Services     | 4                      |
 
 ---
 
@@ -974,7 +999,6 @@ docker-compose up -d
 
 <div align="center">
 
-
-**Version**: 1.0.0 | **Last Updated**: December 2025
+**Version**: 1.0.0 | **Last Updated**: May 2026
 
 </div>

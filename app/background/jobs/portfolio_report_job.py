@@ -48,14 +48,14 @@ async def send_portfolio_reports(db_pool: asyncpg.Pool):
         
         logger.info(f"Report frequency: {frequency}")
         
-        # Get all users with portfolio reports enabled
-        email_repo = EmailRepository(db_pool)
-        users_with_reports = await email_repo.get_users_with_preference('portfolio_reports', True)
+        # Send reports to ALL active users (not just those who opted in)
+        user_repo = UserRepository(db_pool)
+        users_with_reports = await user_repo.get_all_users(limit=10000, offset=0, account_status="active")
         
-        logger.info(f"Found {len(users_with_reports)} users with reports enabled")
+        logger.info(f"Found {len(users_with_reports)} active users to send reports to")
         
         if not users_with_reports:
-            logger.info("No users to send reports to")
+            logger.info("No active users to send reports to")
             return
         
         # Initialize services
@@ -99,7 +99,7 @@ async def send_portfolio_reports(db_pool: asyncpg.Pool):
                 logger.error(f" Error sending report to user {user.get('user_id')}: {e}")
         
         # Update last sent timestamp
-        await system_repo.update_portfolio_report_last_sent(datetime.now())
+        await system_repo.update_portfolio_report_last_sent()
         
         # Calculate duration
         end_time = datetime.now()

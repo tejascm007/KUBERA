@@ -538,8 +538,8 @@ class AuthService:
             OTPInvalidException: Wrong OTP
             WeakPasswordException: Password too weak
         """
-        # Verify OTP
-        otp_record = await self.otp_repo.get_latest_otp(email, "password_reset")
+        # Verify OTP — only look at unverified records (consistent with registration flow)
+        otp_record = await self.otp_repo.get_latest_unverified_otp(email, "password_reset")
         
         if not otp_record:
             raise OTPNotFoundException("No OTP found for this email")
