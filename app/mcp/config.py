@@ -17,78 +17,61 @@ class MCPServerConfig:
     # Python executable path
     PYTHON_EXECUTABLE = settings.PYTHON_EXECUTABLE or "python"
     
+    @staticmethod
+    def get_env() -> Dict[str, str]:
+        """Get current environment variables to pass to MCP subprocesses"""
+        return {key: value for key, value in os.environ.items()}
+    
     # Server configurations
     SERVERS: Dict[str, Dict[str, Any]] = {
-        # ====================================================================
-        # SERVER 1: FINANCIAL DATA SERVER
-        # ====================================================================
         "financial-data": {
             "transport": "stdio",
             "command": "uv",
-            "args": ["run",
-            "fastmcp",
-            "run",os.path.join(MCP_SERVERS_PATH, "fin_data.py")],
+            "args": ["run", "fastmcp", "run", os.path.join(MCP_SERVERS_PATH, "fin_data.py")],
             "env": None
         },
-        
-        # ====================================================================
-        # SERVER 2: MARKET & TECHNICAL ANALYSIS SERVER
-        # ====================================================================
         "market-technical": {
             "transport": "stdio",
             "command": "uv",
-            "args": ["run",
-            "fastmcp",
-            "run",os.path.join(MCP_SERVERS_PATH, "market_tech.py")],
+            "args": ["run", "fastmcp", "run", os.path.join(MCP_SERVERS_PATH, "market_tech.py")],
             "env": None
         },
-        
-        # ====================================================================
-        # SERVER 3: GOVERNANCE & COMPLIANCE SERVER
-        # ====================================================================
         "governance-compliance": {
             "transport": "stdio",
             "command": "uv",
-            "args": ["run",
-            "fastmcp",
-            "run",os.path.join(MCP_SERVERS_PATH, "gov_compliance.py")],
+            "args": ["run", "fastmcp", "run", os.path.join(MCP_SERVERS_PATH, "gov_compliance.py")],
             "env": None
         },
-        
-        # ====================================================================
-        # SERVER 4: NEWS & SENTIMENT SERVER
-        # ====================================================================
         "news-sentiment": {
             "transport": "stdio",
             "command": "uv",
-            "args": ["run",
-            "fastmcp",
-            "run",os.path.join(MCP_SERVERS_PATH, "news_sent.py")],
+            "args": ["run", "fastmcp", "run", os.path.join(MCP_SERVERS_PATH, "news_sent.py")],
             "env": None
         },
-        
-        # ====================================================================
-        # SERVER 5: VISUALIZATION & CHARTING SERVER
-        # ====================================================================
         "visualization": {
             "transport": "stdio",
             "command": "uv",
-            "args": ["run",
-            "fastmcp",
-            "run",os.path.join(MCP_SERVERS_PATH, "visualization.py")],
-            "env": None      
+            "args": ["run", "fastmcp", "run", os.path.join(MCP_SERVERS_PATH, "visualization.py")],
+            "env": None
         }
     }
     
     @classmethod
-    def get_server_config(cls, server_name: str) -> Dict[str, Any]:
-        """Get configuration for a specific server"""
-        return cls.SERVERS.get(server_name)
-    
-    @classmethod
     def get_all_servers(cls) -> Dict[str, Dict[str, Any]]:
-        """Get all server configurations"""
-        return cls.SERVERS
+        """Get all server configurations with current env vars injected"""
+        env = cls.get_env()
+        servers = {}
+        for name, config in cls.SERVERS.items():
+            servers[name] = {**config, "env": env}
+        return servers
+
+    @classmethod
+    def get_server_config(cls, server_name: str) -> Dict[str, Any]:
+        """Get configuration for a specific server with env vars injected"""
+        server = cls.SERVERS.get(server_name)
+        if server:
+            return {**server, "env": cls.get_env()}
+        return None
     
     @classmethod
     def get_server_tools(cls, server_name: str) -> list:

@@ -9,6 +9,20 @@
 
 ---
 
+## 🌍 Live Deployment
+
+The application is fully deployed and available online:
+
+- **Frontend Application**: [https://kubera-frontend-olive.vercel.app/](https://kubera-frontend-olive.vercel.app/)  
+  *(Deployed via Vercel)*
+  
+- **Backend API**: `https://kubera007.duckdns.org` | **WebSocket**: `wss://kubera007.duckdns.org`  
+  *(Running on AWS EC2 `t3.micro` using Docker containerization. Mapped to EC2 IP `54.206.176.208` using DuckDNS to support secure HTTPS/WSS connections for Vercel compatibility).*
+  
+- **Docker Image**: Available on Docker Hub at [`tejascm/kubera-backend`](https://hub.docker.com/r/tejascm/kubera-backend)
+
+---
+
 ## 📋 Table of Contents
 
 - [Features](#-features)

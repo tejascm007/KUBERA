@@ -1,6 +1,6 @@
 # ============================================================================
 # KUBERA STOCK ANALYSIS CHATBOT - DOCKERFILE
-# Multi-stage build for optimized production image
+# Multi-stage build using uv for all package management
 # ============================================================================
 
 # ============================================================================
@@ -8,7 +8,6 @@
 # ============================================================================
 FROM python:3.11-slim as builder
 
-# Set working directory
 WORKDIR /app
 
 # Install system dependencies
@@ -20,32 +19,37 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
 # Copy requirements
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies using uv
+RUN uv pip install --system --no-cache -r requirements.txt
 
 # ============================================================================
 # STAGE 2: RUNTIME
 # ============================================================================
 FROM python:3.11-slim
 
-# Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
     TZ=Asia/Kolkata
 
-# Set working directory
 WORKDIR /app
 
-# Install runtime dependencies
+# Install runtime system dependencies
 RUN apt-get update && apt-get install -y \
     libpq5 \
     curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install uv and make it available system-wide
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    cp /root/.local/bin/uv /usr/local/bin/uv && \
+    chmod +x /usr/local/bin/uv
 
 # Create non-root user
 RUN useradd -m -u 1000 kubera && \
@@ -68,9 +72,10 @@ USER kubera
 # Expose port
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+# start-period gives app 60s to fully initialize all 5 MCP servers before
+# health checks begin — prevents false unhealthy restarts during startup
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Run application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--ws", "websockets"]
