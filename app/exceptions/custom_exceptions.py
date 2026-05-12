@@ -46,7 +46,7 @@ class ForbiddenException(KuberaException):
 class InvalidCredentialsException(KuberaException):
     """Invalid username or password"""
     
-    def __init__(self, message: str = "Invalid email or password"):
+    def __init__(self, message: str = "Invalid username or password"):
         super().__init__(
             message=message,
             status_code=status.HTTP_401_UNAUTHORIZED

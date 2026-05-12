@@ -310,7 +310,7 @@ class AuthService:
         
         # Verify password
         if not verify_password(password, user['password_hash']):
-            raise InvalidCredentialsException("Invalid email or password")
+            raise InvalidCredentialsException("Invalid username or password")
         
         # Check account status
         if user['account_status'] == 'deactivated':

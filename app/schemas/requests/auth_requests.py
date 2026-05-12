@@ -94,7 +94,7 @@ class CompleteRegistrationRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     """Request schema for user login"""
-    username: str = Field(..., min_length=5, description="User's username")
+    username: str = Field(..., min_length=3, max_length=50, description="User's username")
     password: str = Field(..., description="Password")
     
     class Config:
