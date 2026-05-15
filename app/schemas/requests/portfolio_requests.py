@@ -31,9 +31,13 @@ class AddPortfolioRequest(BaseModel):
     
     @validator('investment_type')
     def validate_investment_type(cls, v):
-        if v and v not in ['long-term', 'short-term']:
-            raise ValueError('Investment type must be long-term or short-term')
-        return v
+        if v:
+            v = v.strip()
+            if len(v) == 0:
+                return None
+            if len(v) > 50:
+                raise ValueError('Investment type must be 50 characters or less')
+        return v or None
     
     @validator('buy_date')
     def validate_buy_date(cls, v):
@@ -70,9 +74,13 @@ class UpdatePortfolioRequest(BaseModel):
     
     @validator('investment_type')
     def validate_investment_type(cls, v):
-        if v and v not in ['long-term', 'short-term']:
-            raise ValueError('Investment type must be long-term or short-term')
-        return v
+        if v:
+            v = v.strip()
+            if len(v) == 0:
+                return None
+            if len(v) > 50:
+                raise ValueError('Investment type must be 50 characters or less')
+        return v or None
     
     @validator('buy_date')
     def validate_buy_date(cls, v):

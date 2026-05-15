@@ -29,6 +29,7 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 # Initialize Supabase client
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
+SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "Kubera")  # Configurable bucket name
 
 # Check if Supabase is configured
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -63,7 +64,7 @@ def upload_chart_to_supabase(html_content: str, stock_symbol: str, chart_type: s
         logger.info(f"Uploading chart: {filename} (size: {len(html_content)} bytes)")
         
         # Upload to Supabase Storage
-        response = supabase.storage.from_("Kubera").upload(
+        response = supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=filename,
             file=html_content.encode('utf-8'),
             file_options={
@@ -76,7 +77,7 @@ def upload_chart_to_supabase(html_content: str, stock_symbol: str, chart_type: s
         logger.info(f"Supabase upload response: {response}")
         
         # Get public URL
-        public_url = supabase.storage.from_("Kubera").get_public_url(filename)
+        public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(filename)
         
         logger.info(f"Chart uploaded successfully: {public_url[:80]}...")
         return public_url
@@ -236,15 +237,16 @@ def generate_price_volume_chart(
             chart_html = fig.to_html(include_plotlyjs='cdn')
             chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "price_volume")
 
+            # Always include chart_html for direct rendering — ensures charts work
+            # even when Supabase storage is unavailable on the deployed server.
+            result["chart_html"] = chart_html
             if chart_url:
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
-                # Include chart HTML so frontend can render directly
-                result["chart_html"] = chart_html
             else:
                 result["chart_url"] = None
-                result["chart_available"] = False
-                result["error"] = "Failed to upload chart to storage"
+                result["chart_available"] = True  # Still available via inline HTML
+                result["storage_note"] = "Chart storage upload failed. Rendered inline."
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -359,14 +361,15 @@ def generate_candlestick_chart(
             chart_html = fig.to_html(include_plotlyjs='cdn')
             chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "candlestick")
 
+            # Always include chart_html for direct rendering
+            result["chart_html"] = chart_html
             if chart_url:
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
-                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
-                result["chart_available"] = False
-                result["error"] = "Failed to upload chart to storage"
+                result["chart_available"] = True
+                result["storage_note"] = "Chart storage upload failed. Rendered inline."
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -526,15 +529,15 @@ def generate_technical_indicators_chart(
             chart_html = fig.to_html(include_plotlyjs='cdn')
             chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "technical_indicators")
 
+            # Always include chart_html for direct rendering
+            result["chart_html"] = chart_html
             if chart_url:
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
-                # Optional: Keep chart_html for backward compatibility or remove it
-                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
-                result["chart_available"] = False
-                result["error"] = "Failed to upload chart to storage"
+                result["chart_available"] = True
+                result["storage_note"] = "Chart storage upload failed. Rendered inline."
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -623,15 +626,15 @@ def generate_fundamental_comparison_chart(
             chart_html = fig.to_html(include_plotlyjs='cdn')
             chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "fundamental_comparison")
 
+            # Always include chart_html for direct rendering
+            result["chart_html"] = chart_html
             if chart_url:
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
-                # Optional: Keep chart_html for backward compatibility or remove it
-                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
-                result["chart_available"] = False
-                result["error"] = "Failed to upload chart to storage"
+                result["chart_available"] = True
+                result["storage_note"] = "Chart storage upload failed. Rendered inline."
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -739,15 +742,15 @@ def generate_financial_trend_chart(
             chart_html = fig.to_html(include_plotlyjs='cdn')
             chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "financial_trend")
 
+            # Always include chart_html for direct rendering
+            result["chart_html"] = chart_html
             if chart_url:
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
-                # Optional: Keep chart_html for backward compatibility or remove it
-                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
-                result["chart_available"] = False
-                result["error"] = "Failed to upload chart to storage"
+                result["chart_available"] = True
+                result["storage_note"] = "Chart storage upload failed. Rendered inline."
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -849,15 +852,15 @@ def generate_performance_vs_benchmark_chart(
             chart_html = fig.to_html(include_plotlyjs='cdn')
             chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "performance_comparison")
 
+            # Always include chart_html for direct rendering
+            result["chart_html"] = chart_html
             if chart_url:
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
-                # Optional: Keep chart_html for backward compatibility or remove it
-                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
-                result["chart_available"] = False
-                result["error"] = "Failed to upload chart to storage"
+                result["chart_available"] = True
+                result["storage_note"] = "Chart storage upload failed. Rendered inline."
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -932,15 +935,15 @@ def generate_valuation_heatmap(
             chart_html = fig.to_html(include_plotlyjs='cdn')
             chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "valuation_heatmap")
 
+            # Always include chart_html for direct rendering
+            result["chart_html"] = chart_html
             if chart_url:
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
-                # Optional: Keep chart_html for backward compatibility or remove it
-                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
-                result["chart_available"] = False
-                result["error"] = "Failed to upload chart to storage"
+                result["chart_available"] = True
+                result["storage_note"] = "Chart storage upload failed. Rendered inline."
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -1022,15 +1025,15 @@ def generate_portfolio_composition_chart(
             chart_html = fig.to_html(include_plotlyjs='cdn')
             chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "portfolio_composition")
 
+            # Always include chart_html for direct rendering
+            result["chart_html"] = chart_html
             if chart_url:
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
-                # Optional: Keep chart_html for backward compatibility or remove it
-                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
-                result["chart_available"] = False
-                result["error"] = "Failed to upload chart to storage"
+                result["chart_available"] = True
+                result["storage_note"] = "Chart storage upload failed. Rendered inline."
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -1108,15 +1111,15 @@ def generate_dividend_timeline_chart(
             chart_html = fig.to_html(include_plotlyjs='cdn')
             chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "dividend_timeline")
 
+            # Always include chart_html for direct rendering
+            result["chart_html"] = chart_html
             if chart_url:
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
-                # Optional: Keep chart_html for backward compatibility or remove it
-                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
-                result["chart_available"] = False
-                result["error"] = "Failed to upload chart to storage"
+                result["chart_available"] = True
+                result["storage_note"] = "Chart storage upload failed. Rendered inline."
         else:
             result["chart_html"] = None
             result["chart_available"] = False
@@ -1213,15 +1216,15 @@ def generate_risk_return_scatter(
             chart_html = fig.to_html(include_plotlyjs='cdn')
             chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "risk_return_scatter")
 
+            # Always include chart_html for direct rendering
+            result["chart_html"] = chart_html
             if chart_url:
                 result["chart_url"] = chart_url
                 result["chart_available"] = True
-                # Optional: Keep chart_html for backward compatibility or remove it
-                result["chart_html"] = chart_html  # Include for direct rendering
             else:
                 result["chart_url"] = None
-                result["chart_available"] = False
-                result["error"] = "Failed to upload chart to storage"
+                result["chart_available"] = True
+                result["storage_note"] = "Chart storage upload failed. Rendered inline."
         else:
             result["chart_html"] = None
             result["chart_available"] = False

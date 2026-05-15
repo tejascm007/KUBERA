@@ -141,8 +141,17 @@ class MCPToolHandler:
             Formatted string for LLM
         """
         if tool_result["success"]:
-            # Success - return result as JSON string
-            return json.dumps(tool_result["result"], indent=2)
+            result = tool_result["result"]
+            if isinstance(result, dict):
+                # Strip chart_html from LLM context — it's large HTML (10-50KB) that is
+                # useless to the LLM and causes it to embed the Supabase URL as a
+                # broken markdown image in its text. The chart_html is delivered to the
+                # frontend separately via the message_complete metadata.
+                result_for_llm = {k: v for k, v in result.items() if k != "chart_html"}
+                if "chart_html" in result:
+                    result_for_llm["chart_rendered"] = True  # Signal to LLM: chart is ready
+                return json.dumps(result_for_llm, indent=2, default=str)
+            return json.dumps(result, indent=2, default=str)
         else:
             # Error - return error message
             return json.dumps({
