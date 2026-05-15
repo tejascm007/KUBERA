@@ -39,14 +39,13 @@ The application is fully deployed and available online:
 - [Email Notifications](#email-notifications)
 - [Docker Deployment](#docker-deployment)
 - [Development](#development)
-- [Testing](#testing)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)
 
 ---
 
-## ✨ Features
+## Features
 
 ### Core Features
 
@@ -104,7 +103,7 @@ The application is fully deployed and available online:
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -139,7 +138,7 @@ The application is fully deployed and available online:
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Backend
 
@@ -189,7 +188,7 @@ The application is fully deployed and available online:
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 kubera-backend/
@@ -298,7 +297,7 @@ kubera-backend/
 
 ---
 
-## 📥 Installation
+## Installation
 
 ### Prerequisites
 
@@ -339,7 +338,7 @@ uv pip install -r requirements.txt
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 ### 1. Environment Variables
 
@@ -425,7 +424,7 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 ---
 
-## 🗄️ Database Setup
+## Database Setup
 
 ### Method 1: Automated Script (Recommended)
 
@@ -462,7 +461,7 @@ python scripts/seed_admin.py list
 
 ---
 
-## 🚀 Running the Application
+## Running the Application
 
 ### Development Mode
 
@@ -493,7 +492,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 
 ---
 
-## 📡 API Documentation
+## API Documentation
 
 ### Authentication Endpoints (11)
 
@@ -589,7 +588,7 @@ WS /ws/chat?token={jwt_token}      # Real-time chat
 
 ---
 
-## 🔧 MCP Servers
+## MCP Servers
 
 KUBERA uses 5 specialized MCP servers with **45 tools** total:
 
@@ -665,7 +664,7 @@ KUBERA uses 5 specialized MCP servers with **45 tools** total:
 
 ---
 
-## 🔌 WebSocket Protocol
+## WebSocket Protocol
 
 ### Connect
 
@@ -736,7 +735,7 @@ const ws = new WebSocket("ws://localhost:8000/ws/chat?token=YOUR_JWT_TOKEN");
 
 ---
 
-## ⏰ Background Jobs
+## Background Jobs
 
 ### Configured Jobs
 
@@ -755,7 +754,7 @@ curl http://localhost:8000/scheduler/status
 
 ---
 
-## ⚡ Rate Limiting
+## Rate Limiting
 
 ### 4-Level Fail-Fast System (DB-driven & live-configurable)
 
@@ -778,7 +777,7 @@ All limits are stored in the database and enforced per-prompt via `RateLimitServ
 
 ---
 
-## 📧 Email Notifications
+## Email Notifications
 
 ### 15+ Email Types
 
@@ -792,7 +791,7 @@ All limits are stored in the database and enforced per-prompt via `RateLimitServ
 
 ---
 
-## 🐳 Docker Deployment
+## Docker Deployment
 
 ### Quick Start
 
@@ -832,7 +831,7 @@ docker run -d \
 
 ---
 
-## 💻 Development
+## Development
 
 ### Code Style
 
@@ -865,31 +864,7 @@ python scripts/run_migrations.py status
 
 ---
 
-## 🧪 Testing
-
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=app --cov-report=html
-
-# Run specific test file
-pytest tests/test_auth.py
-
-# Run with logs
-pytest -s -v
-
-# Run only unit tests
-pytest -m unit
-
-# Run only integration tests
-pytest -m integration
-```
-
----
-
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -931,7 +906,7 @@ curl http://localhost:8000/health
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create feature branch (`git checkout -b feature/amazing-feature`)
@@ -953,16 +928,15 @@ chore: Maintenance tasks
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 📞 Support
+## Support
 
-- 📧 **Email**: support@kubera.ai
-- 📖 **Documentation**: https://docs.kubera.ai
+- 📧 **Email**: tejascm007@gmail.com
 - 🐛 **Issues**: https://github.com/yourusername/kubera-backend/issues
 
 ---
