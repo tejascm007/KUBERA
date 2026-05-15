@@ -32,61 +32,82 @@ class LLMService:
         self.db_pool = db_pool
         logger.info("LLMService initialized (using LLMMCPOrchestrator)")
     
-    async def _fetch_portfolio_context(self, user_id: str) -> str:
+    async def _build_user_context(self, user_id: str) -> str:
         """
-        Fetch user's portfolio and format it as context for LLM
+        Build personalised LLM context from user investment profile + portfolio.
         
-        Args:
-            user_id: User's UUID
-            
-        Returns:
-            Formatted portfolio context string, or empty string if no portfolio
+        Shared with LLM:
+          - risk_tolerance  (from users table)
+          - investment_style (from users table)
+          - portfolio holdings with investment_type per entry
+        
+       
         """
         if not self.db_pool:
-            logger.warning("No database pool available for portfolio fetch")
+            logger.warning("No database pool available for context fetch")
             return ""
         
+        context_parts = []
+        
+        # --- User investment preferences (risk_tolerance + investment_style only) ---
+        try:
+            from app.db.repositories.user_repository import UserRepository
+            user_repo = UserRepository(self.db_pool)
+            user = await user_repo.get_user_by_id(user_id)
+            
+            if user:
+                risk  = user.get('risk_tolerance')  or 'medium'
+                style = user.get('investment_style') or 'mixed'
+                context_parts.append(
+                    f"## User Investment Profile\n"
+                    f"- Risk Tolerance: {risk}\n"
+                    f"- Investment Style: {style}\n"
+                    f"Tailor your analysis depth and risk commentary to this profile."
+                )
+        except Exception as e:
+            logger.error(f"Error fetching user profile context: {e}")
+        
+        # --- Portfolio holdings (with investment_type per entry) ---
         try:
             from app.db.repositories.portfolio_repository import PortfolioRepository
-            
             portfolio_repo = PortfolioRepository(self.db_pool)
             portfolio_entries = await portfolio_repo.get_user_portfolio(user_id)
             
-            if not portfolio_entries:
-                return ""
-            
-            # Format portfolio data for LLM
-            portfolio_lines = []
-            total_investment = 0
-            
-            for entry in portfolio_entries:
-                symbol = entry.get('stock_symbol', 'Unknown')
-                exchange = entry.get('exchange', 'NSE')
-                quantity = entry.get('quantity', 0)
-                buy_price = entry.get('buy_price', 0)
-                investment = quantity * buy_price
-                total_investment += investment
+            if portfolio_entries:
+                portfolio_lines = []
+                total_investment = 0
                 
-                portfolio_lines.append(
-                    f"- {symbol} ({exchange}): {quantity} shares @ ₹{buy_price:.2f} = ₹{investment:,.2f}"
+                for entry in portfolio_entries:
+                    symbol          = entry.get('stock_symbol', 'Unknown')
+                    exchange        = entry.get('exchange', 'NSE')
+                    quantity        = entry.get('quantity', 0)
+                    buy_price       = entry.get('buy_price', 0)
+                    investment_type = entry.get('investment_type') or 'unspecified'
+                    investment      = quantity * buy_price
+                    total_investment += investment
+                    
+                    portfolio_lines.append(
+                        f"- {symbol} ({exchange}): {quantity} shares @ ₹{buy_price:.2f}"
+                        f" = ₹{investment:,.2f} [{investment_type}]"
+                    )
+                
+                context_parts.append(
+                    f"## User's Current Portfolio Holdings\n"
+                    f"Total investment: ₹{total_investment:,.2f}\n\n"
+                    + "\n".join(portfolio_lines)
+                    + "\n\nReference this portfolio when answering questions about the user's holdings."
                 )
-            
-            portfolio_context = f"""
-## User's Current Portfolio Holdings
-The user has the following stocks in their portfolio (total investment: ₹{total_investment:,.2f}):
-
-{chr(10).join(portfolio_lines)}
-
-You can reference this portfolio data when answering questions about the user's holdings.
-"""
-            logger.info(f"Portfolio context prepared with {len(portfolio_entries)} entries")
-            return portfolio_context
-            
+                logger.info(f"Portfolio context prepared: {len(portfolio_entries)} entries")
+        
         except Exception as e:
             logger.error(f"Error fetching portfolio context: {e}")
+        
+        if not context_parts:
             return ""
+        
+        return "\n\n".join(context_parts)
     
-    
+
     async def stream_response(
         self,
         user_message: str,
@@ -177,14 +198,15 @@ You can reference this portfolio data when answering questions about the user's 
             # ========================================================================
             
             # Fetch user's portfolio and inject as context
-            portfolio_context = await self._fetch_portfolio_context(user_id)
+            user_context = await self._build_user_context(user_id)
             
-            # If portfolio context exists, inject it as a system-like user message
-            # This gives the LLM knowledge of the user's holdings
             enhanced_message = user_message
-            if portfolio_context:
-                enhanced_message = f"{user_message}\n\n[SYSTEM CONTEXT - User's Portfolio Data]\n{portfolio_context}"
-                logger.info(f"Portfolio context injected into message for user {user_id}")
+            if user_context:
+                enhanced_message = (
+                    f"{user_message}\n\n"
+                    f"[SYSTEM CONTEXT - User Investment Profile & Portfolio]\n{user_context}"
+                )
+                logger.info(f"User context injected for user {user_id}")
 
             async for chunk in process_user_message_streaming(
                 user_message=enhanced_message,
