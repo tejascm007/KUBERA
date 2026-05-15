@@ -624,7 +624,8 @@ def generate_fundamental_comparison_chart(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "fundamental_comparison")
+            _upload_id = "_".join(s.replace(".NS", "").replace(".BO", "") for s in stock_symbols[:4])
+            chart_url = upload_chart_to_supabase(chart_html, _upload_id, "fundamental_comparison")
 
             # Always include chart_html for direct rendering
             result["chart_html"] = chart_html
@@ -933,7 +934,8 @@ def generate_valuation_heatmap(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "valuation_heatmap")
+            _upload_id = "_".join(s.replace(".NS", "").replace(".BO", "") for s in stock_symbols[:4])
+            chart_url = upload_chart_to_supabase(chart_html, _upload_id, "valuation_heatmap")
 
             # Always include chart_html for direct rendering
             result["chart_html"] = chart_html
@@ -961,26 +963,39 @@ def generate_valuation_heatmap(
 
 @mcp.tool()
 def generate_portfolio_composition_chart(
-    portfolio: List[Dict[str, Any]],
+    portfolio: Optional[List[Dict[str, Any]]] = None,
     chart_type: str = "pie"
 ) -> Dict[str, Any]:
     """
-    Generate portfolio composition chart.
-    
+    Generate portfolio composition pie or treemap chart from the user's portfolio holdings.
+
+    IMPORTANT: You MUST construct the 'portfolio' argument yourself from the
+    "User's Current Portfolio Holdings" block in the system context.
+    Do NOT call this tool without the portfolio argument.
+
     Args:
-        portfolio: List of portfolio items with {"symbol": "INFY", "value": 100000, ...}
-        chart_type: "pie" or "treemap"
-    
+        portfolio: List of holdings built from the system context. Each dict must contain:
+                   - "symbol"   : stock symbol
+                   - "quantity" : number of shares (int)
+                   - "buy_price": price per share (float)
+                   Example for a user holding 10 shares of RELIANCE.NS @ ₹700:
+                     portfolio=[{"symbol": "RELIANCE.NS", "quantity": 10, "buy_price": 700}]
+        chart_type: "pie" (default) or "treemap"
+
     Returns:
         Portfolio composition chart
     """
     try:
         if not portfolio:
-            return handle_error(
-                "invalid_input",
-                "portfolio",
-                "Empty portfolio provided"
-            )
+            return {
+                "error": "portfolio_required",
+                "chart_available": False,
+                "message": (
+                    "The 'portfolio' argument is required but was not provided. "
+                    "Please extract the user's holdings from the system context and call this tool again. "
+                    "Example: portfolio=[{'symbol': 'RELIANCE.NS', 'quantity': 10, 'buy_price': 700}]"
+                )
+            }
         
         result = {
             "chart_type": f"portfolio_composition_{chart_type}",
@@ -990,25 +1005,39 @@ def generate_portfolio_composition_chart(
         }
         
         if PLOTLY_AVAILABLE:
-            symbols = [item["symbol"] for item in portfolio]
-            values = [item.get("value", 0) for item in portfolio]
-            
-            if chart_type == "pie":
-                fig = go.Figure(data=[go.Pie(
-                    labels=symbols,
-                    values=values,
-                    hole=0.3,
-                    textinfo='label+percent',
-                    textposition='auto'
-                )])
-                
-                fig.update_layout(
-                    title='Portfolio Composition',
-                    height=500,
-                    template='plotly_white'
+            # ----------------------------------------------------------------
+            # Normalise portfolio items — the LLM may pass various key names
+            # ----------------------------------------------------------------
+            symbols = []
+            values  = []
+            for item in portfolio:
+                # Accept both 'symbol' and 'stock_symbol'
+                sym = item.get("symbol") or item.get("stock_symbol") or "Unknown"
+                symbols.append(sym)
+
+                # Accept explicit 'value' / 'total_value', or compute from qty × price
+                val = (
+                    item.get("value")
+                    or item.get("total_value")
+                    or (item.get("quantity", 0) * item.get("price", 0))
+                    or (item.get("quantity", 0) * item.get("buy_price", 0))
+                    or (item.get("quantity", 0) * item.get("current_price", 0))
+                    or 0
                 )
-            
-            elif chart_type == "treemap":
+                values.append(val)
+
+            # Guard: if all values are 0, abort rather than let plotly throw ZeroDivisionError
+            if sum(values) == 0:
+                result["chart_html"] = None
+                result["chart_available"] = False
+                result["error"] = (
+                    "Could not determine portfolio values. "
+                    "Please pass each holding with a 'value' key, "
+                    "or 'quantity' + 'price' / 'buy_price'."
+                )
+                return result
+
+            if chart_type == "treemap":
                 fig = go.Figure(go.Treemap(
                     labels=symbols,
                     parents=["Portfolio"] * len(symbols),
@@ -1016,14 +1045,28 @@ def generate_portfolio_composition_chart(
                     textinfo='label+value+percent parent',
                     marker=dict(colorscale='Viridis')
                 ))
-                
                 fig.update_layout(
                     title='Portfolio Composition (Treemap)',
                     height=500
                 )
+            else:
+                # Default: pie (also handles "pie" + any unrecognised chart_type)
+                fig = go.Figure(data=[go.Pie(
+                    labels=symbols,
+                    values=values,
+                    hole=0.3,
+                    textinfo='label+percent',
+                    textposition='auto'
+                )])
+                fig.update_layout(
+                    title='Portfolio Composition',
+                    height=500,
+                    template='plotly_white'
+                )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "portfolio_composition")
+            _upload_id = "_".join(e.get("symbol", "stock").replace(".NS", "").replace(".BO", "") for e in portfolio[:4])
+            chart_url = upload_chart_to_supabase(chart_html, _upload_id or "portfolio", "portfolio_composition")
 
             # Always include chart_html for direct rendering
             result["chart_html"] = chart_html
@@ -1054,14 +1097,47 @@ def generate_dividend_timeline_chart(
     years: int = 5
 ) -> Dict[str, Any]:
     """
-    Generate dividend payment timeline chart.
-    
+    Generate a bar chart showing dividend payment history for an Indian stock.
+
+    Use this when the user asks about dividends, dividend history, dividend yield trend,
+    or income from a stock.
+
     Args:
-        stock_symbol: Stock symbol
-        years: Number of years
-    
-    Returns:
-        Dividend timeline chart
+        stock_symbol (str): NSE/BSE stock symbol WITH exchange suffix.
+                            - NSE stocks: use ".NS"  e.g. "RELIANCE.NS", "TCS.NS", "INFY.NS"
+                            - BSE stocks: use ".BO"  e.g. "RELIANCE.BO"
+                            Do NOT pass a plain symbol without a suffix (e.g. "RELIANCE" alone
+                            will NOT work — always use "RELIANCE.NS").
+        years (int):        How many years of dividend history to show.
+                            Default = 5. Accepted range: 1–20.
+                            Use a larger value if the user wants a long-term view.
+                            
+example return for reliance:
+    Returns (Dict):
+        On success:
+          {
+            "stock_symbol"  : "RELIANCE.NS",
+            "chart_type"    : "dividend_timeline",
+            "years"         : 5,
+            "chart_rendered": True,          # chart_html stripped — rendered by frontend
+            "chart_url"     : "<supabase url or None>",
+            "chart_available": True,
+            "dividend_data" : {
+                "dates"  : ["2019-07-05", ...],   # ex-dividend dates
+                "amounts": [6.5, 7.0, ...]         # dividend per share in ₹
+            },
+            "data_source"   : "Yahoo Finance"
+          }
+
+        If the stock has never paid dividends:
+          {
+            "stock_symbol"  : "RELIANCE.NS",
+            "message"       : "No dividend history available",
+            "chart_available": False
+          }
+
+        On error:
+          { "error": "api_error", "message": "..." }
     """
     try:
         ticker = get_stock_ticker(stock_symbol)
@@ -1076,7 +1152,11 @@ def generate_dividend_timeline_chart(
                 "chart_available": False
             }
         
-        cutoff_date = datetime.now() - timedelta(days=years*365)
+        cutoff_date = datetime.now() - timedelta(days=years * 365)
+        # yfinance dividend index is timezone-aware (UTC); make cutoff match
+        if dividends.index.tz is not None:
+            import pandas as pd
+            cutoff_date = pd.Timestamp(cutoff_date, tz=dividends.index.tz)
         recent_dividends = dividends[dividends.index >= cutoff_date]
         
         result = {
@@ -1214,7 +1294,8 @@ def generate_risk_return_scatter(
             )
             
             chart_html = fig.to_html(include_plotlyjs='cdn')
-            chart_url = upload_chart_to_supabase(chart_html, stock_symbol, "risk_return_scatter")
+            _upload_id = "_".join(s.replace(".NS", "").replace(".BO", "") for s in stock_symbols[:4])
+            chart_url = upload_chart_to_supabase(chart_html, _upload_id, "risk_return_scatter")
 
             # Always include chart_html for direct rendering
             result["chart_html"] = chart_html
