@@ -16,11 +16,11 @@ CREATE SEQUENCE IF NOT EXISTS schema_version_version_id_seq
     NO MAXVALUE
     CACHE 1;
 
--- ============================================================================
--- STEP 2: TABLES (in dependency order — no FK errors)
--- ============================================================================
+/* ============================================================================
+STEP 2: TABLES (in dependency order — no FK errors)
+============================================================================
 
--- Independent tables first (no foreign keys)
+Independent tables first (no foreign keys) */
 
 CREATE TABLE IF NOT EXISTS public.users (
   user_id UUID NOT NULL DEFAULT uuid_generate_v4(),
@@ -253,7 +253,7 @@ CREATE TABLE IF NOT EXISTS public.admin_activity_logs (
 );
 
 -- ============================================================================
--- STEP 3: INDEXES (v2_indexes.sql)
+-- STEP 3: INDEXES
 -- ============================================================================
 
 SET timezone = 'Asia/Kolkata';
@@ -345,11 +345,11 @@ CREATE INDEX IF NOT EXISTS idx_portfolio_user_gain ON user_portfolio(user_id, ga
 CREATE INDEX IF NOT EXISTS idx_messages_user_tokens ON messages(user_id, tokens_used);
 CREATE INDEX IF NOT EXISTS idx_violations_type_user ON rate_limit_violations(violation_type, user_id, violated_at DESC);
 
--- Unique index from v3
+-- Unique index
 CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_user_stock ON user_portfolio(user_id, stock_symbol);
 
 -- ============================================================================
--- STEP 4: TRIGGERS (from v3_constraints.sql)
+-- STEP 4: TRIGGERS
 -- ============================================================================
 
 -- Function: auto-update updated_at column
@@ -432,10 +432,8 @@ ON CONFLICT DO NOTHING;
 -- ============================================================================
 
 INSERT INTO public.schema_version (version, description) VALUES
-    ('v1.0', 'Initial schema - 15 tables created'),
-    ('v2.0', 'Performance indexes added'),
-    ('v2.1', 'chart_url column added to messages'),
-    ('v3.0', 'Triggers and constraints added');
+    ('v1.0', 'Initial schema - 15 tables created with all indexes and constraints applied');
+
 
 -- ============================================================================
 -- DONE! 15 tables, 60+ indexes, triggers all set.

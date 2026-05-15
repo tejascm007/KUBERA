@@ -86,7 +86,8 @@ async def run_migrations():
         port=settings.POSTGRES_PORT,
         user=settings.POSTGRES_USER,
         password=settings.POSTGRES_PASSWORD,
-        database=settings.POSTGRES_DB
+        database=settings.POSTGRES_DB,
+        ssl='require'  # Required for Supabase; set to False for local PostgreSQL without SSL
     )
     
     try:
@@ -101,11 +102,10 @@ async def run_migrations():
         applied = await get_applied_migrations(conn)
         logger.info(f"Applied migrations: {', '.join(applied) if applied else 'None'}")
         
-        # Available migrations
+        # v1_initial_schema.sql is the single complete migration.
+        # content (indexes, triggers, FK constraints) is already in v1.
         migrations = {
             "v1.0": "v1_initial_schema.sql",
-            "v2.0": "v2_indexes.sql",
-            "v3.0": "v3_constraints.sql"
         }
         
         pending = []
@@ -144,7 +144,8 @@ async def show_migration_status():
         port=settings.POSTGRES_PORT,
         user=settings.POSTGRES_USER,
         password=settings.POSTGRES_PASSWORD,
-        database=settings.POSTGRES_DB
+        database=settings.POSTGRES_DB,
+        ssl='require'  # Required for Supabase; set to False for local PostgreSQL without SSL
     )
     
     try:

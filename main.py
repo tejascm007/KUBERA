@@ -249,10 +249,10 @@ async def root():
             "websocket": "ws://localhost:8000/ws/chat",
         },
         "features": {
-            "rest_endpoints": 42,
+            "rest_endpoints": 54,
             "websocket_endpoints": 1,
             "mcp_servers": 5,
-            "mcp_tools": 44,
+            "mcp_tools": 45,
             "database_tables": 15,
             "background_jobs": 4,
         },

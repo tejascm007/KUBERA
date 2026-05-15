@@ -35,7 +35,8 @@ async def create_database():
         port=settings.POSTGRES_PORT,
         user=settings.POSTGRES_USER,
         password=settings.POSTGRES_PASSWORD,
-        database='postgres'
+        database='postgres',
+        ssl='require'  # Required for Supabase; safe to keep for local PostgreSQL too
     )
     
     try:
@@ -77,7 +78,8 @@ async def run_migrations():
         port=settings.POSTGRES_PORT,
         user=settings.POSTGRES_USER,
         password=settings.POSTGRES_PASSWORD,
-        database=settings.POSTGRES_DB
+        database=settings.POSTGRES_DB,
+        ssl='require'  # Required for Supabase; safe to keep for local PostgreSQL too
     )
     
     try:
@@ -88,11 +90,11 @@ async def run_migrations():
         # Get migrations directory
         migrations_dir = Path(__file__).parent.parent / "app" / "db" / "migrations"
         
-        # Migration files in order
+        # v1_initial_schema.sql is the single complete setup script:
+        # it contains all 15 tables, inline FK constraints, check constraints,
+        # all indexes, all triggers, and default data in one idempotent file.
         migration_files = [
             "v1_initial_schema.sql",
-            "v2_indexes.sql",
-            "v3_constraints.sql"
         ]
         
         # Run each migration
@@ -179,8 +181,14 @@ async def main():
         logger.info(f"User: {settings.POSTGRES_USER}")
         logger.info("=" * 80)
         
-        # Step 1: Create database
-        logger.info("\nSTEP 1: CREATE DATABASE")
+        # Step 1: Create database (if it doesn't already exist)
+        # NOTE: For Supabase — the database is provisioned automatically when you
+        # configure your project credentials in .env. This step detects that the
+        # database already exists and skips creation, proceeding directly to
+        # running migrations (schema + tables setup).
+        # For local PostgreSQL — if no database exists yet, this step creates one
+        # fresh before applying migrations.
+        logger.info("\nSTEP 1: CREATE DATABASE (skipped if already exists)")
         await create_database()
         
         # Step 2: Run migrations

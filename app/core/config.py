@@ -82,12 +82,15 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_DAY: int = 1000
     
     # ==================== STOCK DATA APIs (For MCP Servers) ====================
-    # All optional - yfinance works without any key
-    ALPHA_VANTAGE_API_KEY: Optional[str] = Field(..., env="ALPHA_VANTAGE_API_KEY")
-    FINNHUB_API_KEY: Optional[str] = Field(..., env="FINNHUB_API_KEY")
-    MARKETAUX_API_KEY: Optional[str] = Field(..., env="MARKETAUX_API_KEY")
-    NEWSAPI_KEY: Optional[str] = Field(..., env="NEWSAPI_KEY")
-    INDIAN_API_KEY: Optional[str] = Field(..., env="INDIAN_API_KEY")
+    # Core keys — actively used by MCP servers
+    FINNHUB_API_KEY: Optional[str] = Field(..., env="FINNHUB_API_KEY")   # news_sent.py: Finnhub company news
+    NEWSAPI_KEY: Optional[str] = Field(..., env="NEWSAPI_KEY")            # news_sent.py: NewsAPI articles
+
+    # Future integration keys — defined but not yet wired to any MCP tool.
+    # Keep them in .env; they will be used in upcoming data source expansions.
+    ALPHA_VANTAGE_API_KEY: Optional[str] = Field(None, env="ALPHA_VANTAGE_API_KEY")  # Planned: earnings/economic data
+    MARKETAUX_API_KEY: Optional[str] = Field(None, env="MARKETAUX_API_KEY")          # Planned: financial news with sentiment
+    INDIAN_API_KEY: Optional[str] = Field(None, env="INDIAN_API_KEY")                # Planned: NSE/BSE specific data
     
     # ==================== BACKGROUND JOBS ====================
     PORTFOLIO_UPDATE_FREQUENCY: int = 30

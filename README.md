@@ -23,26 +23,26 @@ The application is fully deployed and available online:
 
 ## 📋 Table of Contents
 
-- [Features](#-features)
-- [Architecture](#-architecture)
-- [Tech Stack](#-tech-stack)
-- [Project Structure](#-project-structure)
-- [Installation](#-installation)
-- [Configuration](#-configuration)
-- [Database Setup](#-database-setup)
-- [Running the Application](#-running-the-application)
-- [API Documentation](#-api-documentation)
-- [MCP Servers](#-mcp-servers)
-- [WebSocket Protocol](#-websocket-protocol)
-- [Background Jobs](#-background-jobs)
-- [Rate Limiting](#-rate-limiting)
-- [Email Notifications](#-email-notifications)
-- [Docker Deployment](#-docker-deployment)
-- [Development](#-development)
-- [Testing](#-testing)
-- [Troubleshooting](#-troubleshooting)
-- [Contributing](#-contributing)
-- [License](#-license)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Database Setup](#database-setup)
+- [Running the Application](#running-the-application)
+- [API Documentation](#api-documentation)
+- [MCP Servers](#mcp-servers)
+- [WebSocket Protocol](#websocket-protocol)
+- [Background Jobs](#background-jobs)
+- [Rate Limiting](#rate-limiting)
+- [Email Notifications](#email-notifications)
+- [Docker Deployment](#docker-deployment)
+- [Development](#development)
+- [Testing](#testing)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
@@ -116,9 +116,9 @@ The application is fully deployed and available online:
 ┌────────────────▼────────────────────────────▼───────────────────┐
 │                    FASTAPI APPLICATION                          │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │                    API Endpoints (50)                      │ │
+│  │                    API Endpoints (55)                      │ │
 │  │  Auth (11) | User (7) | Portfolio (5) | Chat (5)           │ │
-│  │        Admin (19) | Root (4) | WebSocket (1)               │ │
+│  │        Admin (22) | Root (4) | WebSocket (1)               │ │
 │  └────────────────────────────────────────────────────────────┘ │
 │  ┌────────────────────────────────────────────────────────────┐ │
 │  │                  Business Logic Layer                      │ │
@@ -225,11 +225,11 @@ kubera-backend/
 │   │       └── admin_responses.py
 │   ├── api/                          # API routes
 │   │   └── routes/
-│   │       ├── auth_routes.py        # Authentication (8 endpoints)
-│   │       ├── user_routes.py        # User management (6 endpoints)
+│   │       ├── auth_routes.py        # Authentication (11 endpoints)
+│   │       ├── user_routes.py        # User management (7 endpoints)
 │   │       ├── portfolio_routes.py   # Portfolio (5 endpoints)
 │   │       ├── chat_routes.py        # Chat (5 endpoints)
-│   │       ├── admin_routes.py       # Admin (17 endpoints)
+│   │       ├── admin_routes.py       # Admin (22 endpoints)
 │   │       └── websocket_routes.py   # WebSocket (1 endpoint)
 │   ├── services/                     # Business logic
 │   │   ├── auth_service.py
@@ -255,10 +255,7 @@ kubera-backend/
 │   │   └── tasks/                    # Task implementations
 │   ├── db/                           # Database
 │   │   ├── migrations/               # SQL migrations
-│   │   │   ├── v1_initial_schema.sql
-│   │   │   ├── v2_indexes.sql
-│   │   │   ├── v2_add_chart_url.sql
-│   │   │   └── v3_constraints.sql
+│   │   │   └── v1_initial_schema.sql # Complete schema: tables, indexes, triggers, defaults
 │   │   └── repositories/             # Data access layer
 │   │       ├── user_repository.py
 │   │       ├── chat_repository.py
@@ -355,47 +352,65 @@ cp .env.example .env
 Edit `.env` and configure the following:
 
 ```env
-# ===========================================
-# CRITICAL SETTINGS
-# ===========================================
-SECRET_KEY=your_secret_key_here
+APP_NAME=KUBERA
+APP_VERSION=1.0.0
+APP_ENV=development
+DEBUG=True
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8000
 
-# ===========================================
-# LLM (OPENROUTER)
-# ===========================================
-OPENROUTER_API_KEY=sk-or-your-api-key
-OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct  # or anthropic/claude-3.5-sonnet
-
-# ===========================================
-# DATABASE (SUPABASE)
-# ===========================================
-POSTGRES_HOST=your-project.pooler.supabase.com
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_ANON_KEY=your-supabase-anon-key
+POSTGRES_HOST=aws-0-ap-south-1.pooler.supabase.com
 POSTGRES_PORT=6543
-POSTGRES_USER=postgres.your-project
-POSTGRES_PASSWORD=your_password
+POSTGRES_USER=postgres.your-project-id
+POSTGRES_PASSWORD=your-database-password
 POSTGRES_DB=postgres
+DATABASE_URL=postgresql://postgres.your-project-id:your-password@aws-0-ap-south-1.pooler.supabase.com:6543/postgres
+POSTGRES_MIN_POOL_SIZE=2
+POSTGRES_MAX_POOL_SIZE=10
 
-# ===========================================
-# SMTP (for emails)
-# ===========================================
+SECRET_KEY=your-secret-key-generate-with-secrets-token-hex-32
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=7
+
+OPENROUTER_API_KEY=sk-or-v1-your-openrouter-api-key
+OPENROUTER_MODEL=openai/gpt-4o-mini
+OPENROUTER_SITE_URL=http://localhost:8000
+OPENROUTER_APP_NAME=KUBERA
+
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
+SMTP_PASSWORD=your-gmail-app-password
 SMTP_FROM_EMAIL=your-email@gmail.com
+SMTP_FROM_NAME=KUBERA
 
-# ===========================================
-# SUPABASE (for chart storage)
-# ===========================================
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your-anon-key
+OTP_EXPIRE_MINUTES=10
+OTP_MAX_ATTEMPTS=3
 
-# ===========================================
-# OPTIONAL: EXTERNAL APIS
-# ===========================================
-FINNHUB_API_KEY=your-finnhub-key
-ALPHA_VANTAGE_API_KEY=your-alpha-vantage-key
-NEWSAPI_KEY=your-news-api-key
+RATE_LIMIT_BURST=10
+RATE_LIMIT_PER_CHAT=50
+RATE_LIMIT_PER_HOUR=150
+RATE_LIMIT_PER_DAY=1000
+
+PYTHON_EXECUTABLE=python
+
+FINNHUB_API_KEY=your-finnhub-api-key
+NEWSAPI_KEY=your-newsapi-key
+ALPHA_VANTAGE_API_KEY=your-alphavantage-api-key
+MARKETAUX_API_KEY=your-marketaux-api-key
+INDIAN_API_KEY=your-indian-api-key
+
+PORTFOLIO_UPDATE_FREQUENCY=10
+PORTFOLIO_REPORT_FREQUENCY=disabled
+PORTFOLIO_REPORT_SEND_TIME=09:00
+PORTFOLIO_REPORT_DAY_WEEKLY=1
+PORTFOLIO_REPORT_DAY_MONTHLY=1
+
+TIMEZONE=Asia/Kolkata
+LOG_LEVEL=INFO
+LOG_FILE=logs/kubera.log
 ```
 
 ### 2. Generate Secret Key
