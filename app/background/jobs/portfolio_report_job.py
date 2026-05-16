@@ -101,6 +101,18 @@ async def send_portfolio_reports(db_pool: asyncpg.Pool):
         # Update last sent timestamp
         await system_repo.update_portfolio_report_last_sent()
         
+        # Refresh next_scheduled in DB from the live APScheduler state
+        try:
+            from app.background.scheduler import background_scheduler
+            job = background_scheduler.get_job("portfolio_reports")
+            if job and job.next_run_time:
+                await system_repo.update_portfolio_report_settings({
+                    'portfolio_report_next_scheduled': job.next_run_time
+                })
+                logger.info(f"Next report scheduled at: {job.next_run_time}")
+        except Exception as e:
+            logger.warning(f"Could not refresh next_scheduled in DB: {e}")
+        
         # Calculate duration
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()

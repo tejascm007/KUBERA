@@ -58,20 +58,49 @@ class BackgroundScheduler:
             logger.info(" Job added: Portfolio Price Update (every 30 mins)")
             
             # ================================================================
-            # JOB 2: PORTFOLIO REPORTS (Daily at configured time)
+            # JOB 2: PORTFOLIO REPORTS (Schedule from DB settings)
             # ================================================================
-            # This will be dynamically scheduled based on system_status settings
-            # We'll check settings and add appropriate trigger
-            self.scheduler.add_job(
-                func=send_portfolio_reports,
-                trigger=CronTrigger(hour=9, minute=0),  # Default: 9:00 AM IST
-                id="portfolio_reports",
-                name="Send Portfolio Reports",
-                args=[db_pool],
-                replace_existing=True,
-                max_instances=1
-            )
-            logger.info(" Job added: Portfolio Reports (daily at 9:00 AM IST)")
+            # Read saved settings from DB so restarts restore the correct schedule
+            from app.db.repositories.system_repository import SystemRepository
+            system_repo = SystemRepository(db_pool)
+            system_status = await system_repo.get_system_status()
+            
+            report_trigger = CronTrigger(hour=9, minute=0)  # safe fallback
+            if system_status:
+                freq      = system_status.get('portfolio_report_frequency', 'weekly')
+                st_obj    = system_status.get('portfolio_report_send_time')  # datetime.time
+                day_w     = system_status.get('portfolio_report_send_day_weekly')
+                day_m     = system_status.get('portfolio_report_send_day_monthly')
+                
+                if st_obj:
+                    h, m = st_obj.hour, st_obj.minute
+                else:
+                    h, m = 9, 0
+                
+                if freq == 'daily':
+                    report_trigger = CronTrigger(hour=h, minute=m)
+                elif freq == 'weekly':
+                    frontend_day = day_w if day_w is not None else 1
+                    aps_day = (frontend_day - 1) % 7  # 0=Sun->6, 1=Mon->0, ...
+                    report_trigger = CronTrigger(day_of_week=aps_day, hour=h, minute=m)
+                elif freq == 'monthly':
+                    report_trigger = CronTrigger(day=day_m or 1, hour=h, minute=m)
+                elif freq == 'disabled':
+                    report_trigger = None  # skip adding the job
+            
+            if report_trigger is not None:
+                self.scheduler.add_job(
+                    func=send_portfolio_reports,
+                    trigger=report_trigger,
+                    id="portfolio_reports",
+                    name="Send Portfolio Reports",
+                    args=[db_pool],
+                    replace_existing=True,
+                    max_instances=1
+                )
+                logger.info(f" Job added: Portfolio Reports (restored from DB settings)")
+            else:
+                logger.info(" Portfolio reports are disabled — job not scheduled")
             
             # ================================================================
             # JOB 3: CLEANUP EXPIRED OTPs (Every hour)
