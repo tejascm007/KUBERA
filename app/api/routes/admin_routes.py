@@ -581,12 +581,34 @@ async def update_portfolio_report_settings(
     time_parts = request.send_time.split(":")
     send_time_obj = dt_time(int(time_parts[0]), int(time_parts[1]), int(time_parts[2]) if len(time_parts) > 2 else 0)
     
+    # Capture old settings BEFORE overwriting (for the activity log)
+    existing = await system_repo.get_system_status()
+    old_send_time = existing.get('portfolio_report_send_time') if existing else None
+    old_value = {
+        "frequency":        existing.get('portfolio_report_frequency') if existing else None,
+        "send_time":        old_send_time.strftime('%H:%M') if old_send_time else None,
+        "send_day_weekly":  existing.get('portfolio_report_send_day_weekly') if existing else None,
+        "send_day_monthly": existing.get('portfolio_report_send_day_monthly') if existing else None,
+    }
+
+    # Null out the irrelevant day field based on frequency
+    # so the DB never holds stale day values for the inactive schedule type
+    if request.frequency == "monthly":
+        day_weekly_to_save  = None                    # irrelevant for monthly
+        day_monthly_to_save = request.send_day_monthly
+    elif request.frequency == "weekly":
+        day_weekly_to_save  = request.send_day_weekly
+        day_monthly_to_save = None                    # irrelevant for weekly
+    else:  # daily / disabled
+        day_weekly_to_save  = None
+        day_monthly_to_save = None
+
     # Map request fields to database column names
     settings_dict = {
-        'portfolio_report_frequency': request.frequency,
-        'portfolio_report_send_time': send_time_obj,
-        'portfolio_report_send_day_weekly': request.send_day_weekly,
-        'portfolio_report_send_day_monthly': request.send_day_monthly,
+        'portfolio_report_frequency':        request.frequency,
+        'portfolio_report_send_time':        send_time_obj,
+        'portfolio_report_send_day_weekly':  day_weekly_to_save,
+        'portfolio_report_send_day_monthly': day_monthly_to_save,
     }
     updated = await system_repo.update_portfolio_report_settings(settings_dict)
     
@@ -624,12 +646,12 @@ async def update_portfolio_report_settings(
             action="portfolio_report_settings_updated",
             target_type="system",
             target_id=None,
-            old_value=None,
+            old_value=old_value,
             new_value={
-                "frequency": request.frequency,
-                "send_time": request.send_time,
-                "send_day_weekly": request.send_day_weekly,
-                "send_day_monthly": request.send_day_monthly
+                "frequency":        request.frequency,
+                "send_time":        request.send_time,
+                "send_day_weekly":  day_weekly_to_save,   # actual saved value, not raw request
+                "send_day_monthly": day_monthly_to_save   # actual saved value, not raw request
             }
         )
     except Exception as e:
